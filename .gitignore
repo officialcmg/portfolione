@@ -35,3 +35,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Windsurf rules (local development preferences)
+.windsurfrules.md
+/docs
