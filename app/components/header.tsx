@@ -20,7 +20,7 @@ export default function Header() {
 
   const userAddress = client?.account?.address;
   const truncatedAddress = userAddress ? formatAddress(userAddress) : "";
-
+// {formatAddress(client?.account?.address ?? "")}
   return (
     <header className="border-b">
       <div className="container mx-auto px-4 py-4 flex justify-between items-center">
