@@ -6,7 +6,6 @@ import {
 import { alchemy, arbitrumSepolia, base } from "@account-kit/infra";
 import { QueryClient } from "@tanstack/react-query";
 
-
 const NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID;
 if (!NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID) {
   throw new Error("NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID is not set");
@@ -30,14 +29,16 @@ const uiConfig: AlchemyAccountsUIConfig = {
       [
         { type: "passkey" },
         { type: "social", authProviderId: "google", mode: "popup" },
-        { type: "social", authProviderId: "facebook", mode: "popup" },
       ],
-      [
-        {
-          type: "external_wallets",
-          walletConnect: { projectId: NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID },
-        },
-      ],
+      // [
+      //   {
+      //     type: "external_wallets",
+      //     walletConnect: { 
+      //       projectId: NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID,
+      //       showQrModal: false, // Prevent auto-modal
+      //     },
+      //   },
+      // ],
     ],
     addPasskeyOnSignup: false,
   },
@@ -46,11 +47,10 @@ const uiConfig: AlchemyAccountsUIConfig = {
 export const config = createConfig(
   {
     transport: alchemy({ apiKey: API_KEY }),
-    // Note: This quickstart is configured for Arbitrum Sepolia.
     chain: base,
-    ssr: false, // more about ssr: https://www.alchemy.com/docs/wallets/react/ssr
-    storage: cookieStorage, // more about persisting state with cookies: https://www.alchemy.com/docs/wallets/react/ssr#persisting-the-account-state
-    enablePopupOauth: true, // must be set to "true" if you plan on using popup rather than redirect in the social login flow
+    ssr: false,
+    storage: cookieStorage,
+    enablePopupOauth: true,
     policyId: SPONSORSHIP_POLICY_ID,
   },
   uiConfig

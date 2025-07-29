@@ -9,8 +9,8 @@ import { Providers } from "./providers";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Account Kit Quickstart",
-  description: "Account Kit Quickstart NextJS Template",
+  title: "Portfolione - Smart Portfolio Rebalancing",
+  description: "One-click portfolio rebalancing on Base mainnet with Alchemy Account Kit",
 };
 
 export default function RootLayout({
@@ -27,8 +27,10 @@ export default function RootLayout({
 
   return (
     <html lang="en">
-      <body className={inter.className}>
-        <Providers initialState={initialState}>{children}</Providers>
+      <body className={`${inter.className} min-h-screen bg-gradient-to-b from-background to-muted/30`}>
+        <div className="min-h-screen bg-bg-main bg-cover bg-center bg-no-repeat bg-fixed">
+          <Providers initialState={initialState}>{children}</Providers>
+        </div>
       </body>
     </html>
   );

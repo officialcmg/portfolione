@@ -1,29 +1,116 @@
-import { Button } from "@/components/ui/button";
-import { LogOut, ChevronDown } from "lucide-react";
-import { useLogout, useSignerStatus, useUser, useSmartAccountClient } from "@account-kit/react";
-import { useAuthModal } from "@account-kit/react";
+"use client";
+
+import { useState, useRef, useEffect } from "react";
+import { useLogout, useSignerStatus, useUser, useSmartAccountClient, useAuthModal } from "@account-kit/react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
+import { LiquidButton } from "@/components/ui/liquid-glass-button";
+import { ChevronDown, LogOut, Wallet, Copy, Check } from "lucide-react";
 import Image from "next/image";
 import { formatAddress } from "@/lib/utils";
+import { toast } from "sonner";
 
-export default function Header() {
+function HeaderContent() {
   const { logout } = useLogout();
-  const { isConnected } = useSignerStatus();
+  const { isConnected, isInitializing, error } = useSignerStatus();
   const user = useUser();
-  const { client } = useSmartAccountClient({});
   const { openAuthModal } = useAuthModal();
+  const [mounted, setMounted] = useState(false);
+  const [showCopySuccess, setShowCopySuccess] = useState(false);
 
-  const userAddress = client?.account?.address;
+  // Only access client when it's safe to do so
+  const { client } = useSmartAccountClient({});
+
+  // Safely get the user address with proper guards - only when connected and initialized
+  const userAddress = isConnected && !isInitializing && client?.account?.address ? client.account.address : null;
   const truncatedAddress = userAddress ? formatAddress(userAddress) : "";
-// {formatAddress(client?.account?.address ?? "")}
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const handleCopyAddress = async () => {
+    if (userAddress) {
+      try {
+        await navigator.clipboard.writeText(userAddress);
+        toast.success("Address copied to clipboard");
+        
+        // Show check icon for 2 seconds
+        setShowCopySuccess(true);
+        setTimeout(() => {
+          setShowCopySuccess(false);
+        }, 2000);
+      } catch (err) {
+        toast.error("Failed to copy address");
+      }
+    }
+  };
+
+  const shortenAddress = (address: string) => {
+    if (!address) return "";
+    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  };
+
+  // Show loading state during hydration and initialization
+  if (!mounted || isInitializing) {
+    return (
+      <header className="fixed left-0 top-0 z-20 w-full bg-transparent">
+        <nav className="mx-auto flex items-center justify-between p-4 text-neutral-900 lg:container dark:text-white lg:px-8">
+          <div className="flex items-center gap-2">
+            <Image
+              src="/smart-wallets.svg"
+              alt="Smart Wallets"
+              width={200}
+              height={26}
+              className="h-6 w-auto"
+              priority
+            />
+          </div>
+          <div className="flex gap-3">
+            <div className="w-20 h-9 bg-muted animate-pulse rounded-xl"></div>
+            <div className="w-24 h-9 bg-muted animate-pulse rounded-xl"></div>
+          </div>
+        </nav>
+      </header>
+    );
+  }
+
+  if (error) {
+    return (
+      <header className="fixed left-0 top-0 z-20 w-full bg-transparent">
+        <nav className="mx-auto flex items-center justify-between p-4 text-neutral-900 lg:container dark:text-white lg:px-8">
+          <div className="flex items-center gap-2">
+            <Image
+              src="/smart-wallets.svg"
+              alt="Smart Wallets"
+              width={200}
+              height={26}
+              className="h-6 w-auto"
+              priority
+            />
+          </div>
+          <div className="flex gap-3 text-sm font-medium">
+            <Button
+              onClick={() => openAuthModal()}
+              className="min-h-9 bg-blue-50 text-blue-500 hover:bg-blue-100 dark:bg-blue-500/12 dark:text-blue-500 dark:hover:bg-blue-500/20 border-0 rounded-lg"
+            >
+              Sign in
+            </Button>
+          </div>
+        </nav>
+      </header>
+    );
+  }
+
   return (
-    <header className="border-b">
-      <div className="container mx-auto px-4 py-4 flex justify-between items-center">
+    <header className="fixed left-0 top-0 z-20 w-full bg-transparent">
+      <nav className="mx-auto flex items-center justify-between p-4 text-neutral-900 lg:container dark:text-white lg:px-8">
+        {/* Left side - keep existing logo */}
         <div className="flex items-center gap-2">
           <Image
             src="/smart-wallets.svg"
@@ -31,57 +118,98 @@ export default function Header() {
             width={200}
             height={26}
             className="h-6 w-auto"
+            priority
           />
         </div>
 
-        {isConnected ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                className="gap-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white border-0 hover:from-blue-600 hover:to-purple-700"
-              >
-                <div className="w-6 h-6 rounded-full bg-gradient-to-r from-blue-400 to-purple-500 flex items-center justify-center">
-                  <div className="w-3 h-3 rounded-full bg-orange-500"></div>
-                </div>
-                <span>Hello, {truncatedAddress}</span>
-                <ChevronDown className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <div className="px-3 py-2 border-b">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-400 to-purple-500 flex items-center justify-center">
-                    <div className="w-4 h-4 rounded-full bg-orange-500"></div>
+        {/* Right side - two components */}
+        <div className="flex gap-3 text-sm font-medium">
+          {isConnected ? (
+            <>
+              {/* Network Dropdown - Base only */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="flex h-9 items-center justify-center gap-1 rounded-lg bg-gray-50 p-2.5 duration-300 hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 active:scale-95 dark:bg-white/10 dark:hover:bg-white/20">
+                    <div className="flex items-center gap-2">
+                      <Image
+                        alt="Base"
+                        src="/base-logo.svg"
+                        width={20}
+                        height={20}
+                        className="size-5 rounded-full"
+                      />
+                      <p className="hidden sm:block text-neutral-900 dark:text-white">Base</p>
+                    </div>
+                    <ChevronDown className="size-4 text-gray-500 dark:text-white/50" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48 p-2 rounded-lg">
+                  <div className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-white/80 rounded-lg">
+                    <Image
+                      alt="Base"
+                      src="/base-logo.svg"
+                      width={20}
+                      height={20}
+                      className="size-5 rounded-full"
+                    />
+                    <span>Base</span>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium">Hello,</p>
-                    <p className="text-sm text-muted-foreground">{truncatedAddress}</p>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Wallet Dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="flex h-9 items-center gap-2 rounded-lg bg-gray-50 p-2.5 duration-300 hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 active:scale-95 dark:bg-white/10 dark:hover:bg-white/20">
+                    <Wallet className="size-4 text-neutral-900 dark:text-white" />
+                    <span className="text-sm font-medium text-neutral-900 dark:text-white">$0.00</span>
+                    <ChevronDown className="size-4 text-gray-500 dark:text-white/50" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-64 p-2 rounded-lg">
+                  {/* Address with copy */}
+                  <div className="flex items-center justify-between px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5">
+                    <div className="flex items-center gap-2">
+                      <Wallet className="size-4 text-gray-500 dark:text-white/50" />
+                      <span className="text-sm font-mono text-gray-700 dark:text-white/80">
+                        {shortenAddress(userAddress || "")}
+                      </span>
+                    </div>
+                    <button
+                      onClick={handleCopyAddress}
+                      className="p-1 rounded hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
+                    >
+                      {showCopySuccess ? (
+                        <Check className="size-4 text-gray-500" />
+                      ) : (
+                        <Copy className="size-4 text-gray-500 dark:text-white/50" />
+                      )}
+                    </button>
                   </div>
-                </div>
-              </div>
-              <div className="px-3 py-2 border-b">
-                <p className="text-xs text-muted-foreground">EOA Address</p>
-                <p className="text-sm font-mono">{truncatedAddress}</p>
-              </div>
-              <DropdownMenuItem
-                onClick={() => logout()}
-                className="text-pink-600 hover:text-pink-700 hover:bg-pink-50 cursor-pointer"
-              >
-                <LogOut className="h-4 w-4 mr-2" />
-                Logout
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ) : (
-          <Button
-            onClick={() => openAuthModal()}
-            className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white"
-          >
-            Connect Wallet
-          </Button>
-        )}
-      </div>
+                  
+                  {/* Sign out */}
+                  <DropdownMenuItem
+                    onClick={() => logout()}
+                    className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-white/80 dark:hover:bg-white/5 cursor-pointer rounded-lg"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    Sign out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
+          ) : (
+            <Button
+              onClick={() => openAuthModal()}
+              className="h-9 px-4 text-sm scale-90"
+            >
+              Sign in
+            </Button>
+          )}
+        </div>
+      </nav>
     </header>
   );
 }
+
+export default HeaderContent;
