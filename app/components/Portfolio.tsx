@@ -2,41 +2,59 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import Image from "next/image";
 
-interface TokenData {
+export interface PortfolioToken {
   name: string;
+  address: string;
   symbol: string;
-  usdValue: number;
+  decimals: number;
+  value_usd: number;
+  amount: number;
+  logoURI: string | null;
+}
+
+// Extended interface for rebalancing input
+export interface PortfolioTokenWithTarget extends PortfolioToken {
+  target_value_usd: number;
+  target_amount: number;
 }
 
 interface PortfolioProps {
-  tokens: TokenData[];
+  tokens: PortfolioToken[];
 }
 
-// Token logos mapping (using placeholder colors for now)
-const tokenLogos: Record<string, { bg: string; icon: string }> = {
-  ETH: { bg: "bg-gray-800", icon: "Ξ" },
-  USDC: { bg: "bg-blue-600", icon: "$" },
-  UNI: { bg: "bg-pink-500", icon: "🦄" },
-  LDO: { bg: "bg-orange-500", icon: "◊" },
-};
+
 
 export default function Portfolio({ tokens }: PortfolioProps) {
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Show loading state for 2 seconds
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, []);
+
   // Calculate total portfolio value
-  const totalValue = tokens.reduce((sum, token) => sum + token.usdValue, 0);
+  const totalValue = tokens.reduce((sum, token) => sum + token.value_usd, 0);
   
   // Calculate current allocations
   const currentAllocations = tokens.map(token => ({
     ...token,
-    allocation: totalValue > 0 ? (token.usdValue / totalValue) * 100 : 0
+    allocation: totalValue > 0 ? (token.value_usd / totalValue) * 100 : 0
   }));
 
   // Initialize target allocations with a stable initial state
   const [targetAllocations, setTargetAllocations] = useState<Record<string, number>>(() => {
     const initialTargets: Record<string, number> = {};
     tokens.forEach(token => {
-      const allocation = totalValue > 0 ? (token.usdValue / totalValue) * 100 : 0;
-      initialTargets[token.symbol] = Math.round(allocation * 100) / 100;
+      const allocation = totalValue > 0 ? (token.value_usd / totalValue) * 100 : 0;
+      // Round to nearest whole percentage for realistic swap precision
+      initialTargets[token.address] = Math.round(allocation);
     });
     return initialTargets;
   });
@@ -45,7 +63,8 @@ export default function Portfolio({ tokens }: PortfolioProps) {
   useEffect(() => {
     const newTargets: Record<string, number> = {};
     currentAllocations.forEach(token => {
-      newTargets[token.symbol] = Math.round(token.allocation * 100) / 100;
+      // Round to nearest whole percentage for realistic swap precision
+      newTargets[token.address] = Math.round(token.allocation);
     });
     setTargetAllocations(newTargets);
   }, [tokens.length]); // Only update when tokens array changes
@@ -53,25 +72,30 @@ export default function Portfolio({ tokens }: PortfolioProps) {
   // Calculate total target allocation
   const totalTargetAllocation = Object.values(targetAllocations).reduce((sum, val) => sum + (val || 0), 0);
 
-  // Check if allocations match targets (within 0.1% tolerance)
+  // Check if allocations match targets (within 1% tolerance - realistic for swap precision)
   const allocationsMatch = currentAllocations.every(token => {
-    const target = targetAllocations[token.symbol];
+    const target = targetAllocations[token.address];
     if (target === undefined) return false; // If no target set, there are changes to make
-    return Math.abs(token.allocation - target) < 0.1;
+    return Math.abs(token.allocation - target) < 1;
   });
 
-  // Color logic: Green if total is 100%, red otherwise
-  const totalIs100 = Math.abs(totalTargetAllocation - 100) < 0.1;
+  // Color logic: Green if total is exactly 100%, red otherwise
+  // Round to whole number for realistic swap precision
+  const roundedTotal = Math.round(totalTargetAllocation);
+  const totalIs100 = roundedTotal === 100;
   const totalColor = totalIs100 ? "text-green-600" : "text-red-600";
   
   // Button logic: Disabled if allocations match targets OR if total is not 100%
   const isButtonDisabled = allocationsMatch || !totalIs100;
 
-  const handleTargetChange = (symbol: string, value: string) => {
+  const handleTargetChange = (address: string, value: string) => {
     const numValue = parseFloat(value) || 0;
+    // Round to whole number - matches realistic swap precision
+    const roundedValue = Math.round(numValue);
+    
     setTargetAllocations(prev => ({
       ...prev,
-      [symbol]: numValue
+      [address]: roundedValue
     }));
   };
 
@@ -84,8 +108,98 @@ export default function Portfolio({ tokens }: PortfolioProps) {
   };
 
   const formatPercentage = (value: number) => {
-    return `${value.toFixed(2)}%`;
+    // Show 1 decimal for current allocations, whole numbers for targets
+    return `${value.toFixed(1)}%`;
   };
+
+  // Skeleton loading state with exact same layout
+  if (isLoading) {
+    return (
+      <section className="px-4 lg:px-8 py-4">
+        <div className="max-w-6xl mx-auto">
+          <div 
+            className="rounded-2xl p-6 shadow-xl"
+            style={{
+              background: 'rgba(255, 255, 255, 0.05)',
+              backdropFilter: 'blur(20px)',
+              WebkitBackdropFilter: 'blur(20px)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.37)',
+            }}
+          >
+            {/* Header Skeleton */}
+            <div className="mb-4">
+              <div className="flex items-center mb-2">
+                <div className="bg-purple-100 p-2 rounded-lg mr-4">
+                  <div className="h-6 w-6 bg-purple-200 rounded animate-pulse"></div>
+                </div>
+                <div className="h-6 w-48 bg-gray-200 rounded animate-pulse"></div>
+              </div>
+              <div className="ml-12">
+                <div className="h-4 w-96 bg-gray-200 rounded animate-pulse"></div>
+              </div>
+            </div>
+
+            {/* Table Skeleton */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <th className="py-2 px-4 font-semibold text-sm text-gray-500">Asset</th>
+                    <th className="py-2 px-4 font-semibold text-sm text-gray-500 text-right">Value (USD)</th>
+                    <th className="py-2 px-4 font-semibold text-sm text-gray-500 text-right">Allocation %</th>
+                    <th className="py-2 px-4 font-semibold text-sm text-gray-500 text-right">Target Allocation %</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* Skeleton rows for 4 tokens */}
+                  {[...Array(4)].map((_, index) => (
+                    <tr key={index} className={index < 3 ? "border-b border-gray-200" : ""}>
+                      <td className="py-3 px-4 flex items-center">
+                        <div className="w-8 h-8 mr-4 rounded-full bg-gray-200 animate-pulse"></div>
+                        <div>
+                          <div className="h-4 w-20 bg-gray-200 rounded animate-pulse mb-1"></div>
+                          <div className="h-3 w-12 bg-gray-200 rounded animate-pulse"></div>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <div className="h-4 w-20 bg-gray-200 rounded animate-pulse ml-auto"></div>
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <div className="h-4 w-16 bg-gray-200 rounded animate-pulse ml-auto"></div>
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <div className="w-16 h-8 bg-gray-200 rounded animate-pulse ml-auto"></div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-purple-200">
+                    <td className="py-3 px-4"></td>
+                    <td className="py-3 px-4 text-right">
+                      <div className="h-4 w-20 bg-gray-200 rounded animate-pulse ml-auto"></div>
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <div className="h-4 w-16 bg-gray-200 rounded animate-pulse ml-auto"></div>
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <div className="h-4 w-16 bg-gray-200 rounded animate-pulse ml-auto"></div>
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+
+            {/* Button Skeleton */}
+            <div className="mt-4 flex justify-center">
+              <div className="h-12 w-40 bg-gray-200 rounded-lg animate-pulse"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="px-4 lg:px-8 py-4">
@@ -138,18 +252,38 @@ export default function Portfolio({ tokens }: PortfolioProps) {
               </thead>
               <tbody>
                 {currentAllocations.map((token, index) => (
-                  <tr key={token.symbol} className={index < currentAllocations.length - 1 ? "border-b border-gray-200" : ""}>
+                  <tr key={token.address} className={index < currentAllocations.length - 1 ? "border-b border-gray-200" : ""}>
                     <td className="py-3 px-4 flex items-center">
-                      <div className={`w-8 h-8 mr-4 rounded-full flex items-center justify-center text-white font-bold text-sm ${tokenLogos[token.symbol]?.bg || 'bg-gray-500'}`}>
-                        {tokenLogos[token.symbol]?.icon || token.symbol[0]}
+                      <div className="w-8 h-8 mr-4 rounded-full flex items-center justify-center bg-gray-100 overflow-hidden">
+                        {token.logoURI ? (
+                          <Image
+                            src={token.logoURI}
+                            alt={`${token.symbol} logo`}
+                            width={32}
+                            height={32}
+                            className="w-8 h-8 rounded-full object-cover"
+                            onError={(e) => {
+                              // Fallback to symbol initial if image fails to load
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                              const parent = target.parentElement;
+                              if (parent) {
+                                parent.innerHTML = `<span class="text-gray-600 font-bold text-sm">${token.symbol[0]}</span>`;
+                                parent.className = "w-8 h-8 mr-4 rounded-full flex items-center justify-center bg-gray-200";
+                              }
+                            }}
+                          />
+                        ) : (
+                          <span className="text-gray-600 font-bold text-sm">{token.symbol[0]}</span>
+                        )}
                       </div>
                       <div>
                         <p className="font-semibold text-gray-900">{token.name}</p>
                         <p className="text-sm text-gray-500">{token.symbol}</p>
                       </div>
                     </td>
-                    <td className="py-3 px-4 font-medium text-gray-900 text-right">
-                      {formatCurrency(token.usdValue)}
+                    <td className="py-4 px-4 font-medium text-gray-900 text-right">
+                      {formatCurrency(token.value_usd)}
                     </td>
                     <td className="py-3 px-4 font-medium text-gray-900 text-right">
                       {formatPercentage(token.allocation)}
@@ -157,10 +291,10 @@ export default function Portfolio({ tokens }: PortfolioProps) {
                     <td className="py-3 px-4 text-right">
                       <input
                         type="number"
-                        value={targetAllocations[token.symbol] || 0}
-                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleTargetChange(token.symbol, e.target.value)}
+                        value={targetAllocations[token.address] || 0}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleTargetChange(token.address, e.target.value)}
                         className="w-16 px-2 py-1 text-right font-medium text-sm border border-gray-300 rounded focus:border-purple-500 focus:ring-1 focus:ring-purple-500 focus:outline-none"
-                        step="0.1"
+                        step="1"
                         min="0"
                         max="100"
                       />

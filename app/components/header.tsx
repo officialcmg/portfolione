@@ -62,14 +62,7 @@ function HeaderContent() {
       <header className="fixed left-0 top-0 z-20 w-full bg-transparent">
         <nav className="mx-auto flex items-center justify-between p-4 text-neutral-900 lg:container dark:text-white lg:px-8">
           <div className="flex items-center gap-2">
-            <Image
-              src="/smart-wallets.svg"
-              alt="Smart Wallets"
-              width={200}
-              height={26}
-              className="h-6 w-auto"
-              priority
-            />
+            <span className="text-xl font-bold text-purple-700">PortfoliOne</span>
           </div>
           <div className="flex gap-3">
             <div className="w-20 h-9 bg-muted animate-pulse rounded-xl"></div>
@@ -85,14 +78,7 @@ function HeaderContent() {
       <header className="fixed left-0 top-0 z-20 w-full bg-transparent">
         <nav className="mx-auto flex items-center justify-between p-4 text-neutral-900 lg:container dark:text-white lg:px-8">
           <div className="flex items-center gap-2">
-            <Image
-              src="/smart-wallets.svg"
-              alt="Smart Wallets"
-              width={200}
-              height={26}
-              className="h-6 w-auto"
-              priority
-            />
+            <span className="text-xl font-bold text-purple-700">PortfoliOne</span>
           </div>
           <div className="flex gap-3 text-sm font-medium">
             <Button
@@ -112,14 +98,7 @@ function HeaderContent() {
       <nav className="mx-auto flex items-center justify-between p-4 text-neutral-900 lg:container dark:text-white lg:px-8">
         {/* Left side - keep existing logo */}
         <div className="flex items-center gap-2">
-          <Image
-            src="/smart-wallets.svg"
-            alt="Smart Wallets"
-            width={200}
-            height={26}
-            className="h-6 w-auto"
-            priority
-          />
+          <span className="text-xl font-bold text-purple-700">PortfoliOne</span>
         </div>
 
         {/* Right side - two components */}
@@ -201,7 +180,7 @@ function HeaderContent() {
           ) : (
             <Button
               onClick={() => openAuthModal()}
-              className="h-9 px-4 text-sm scale-90"
+              className="h-9 px-6 text-sm font-medium bg-gradient-to-r from-purple-100 to-purple-200 hover:from-purple-200 hover:to-purple-300 text-purple-700 border border-purple-200 hover:border-purple-300 rounded-2xl shadow-sm hover:shadow-md transition-all duration-200 hover:scale-105"
             >
               Sign in
             </Button>
