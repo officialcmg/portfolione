@@ -10,10 +10,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { LiquidButton } from "@/components/ui/liquid-glass-button";
-import { ChevronDown, LogOut, Wallet, Copy, Check } from "lucide-react";
+import { ChevronDown, LogOut, Wallet, Copy, Check, ArrowUpFromLine, ArrowDownToLine } from "lucide-react";
 import Image from "next/image";
 import { formatAddress } from "@/lib/utils";
 import { toast } from "sonner";
+import SendTokenModal from "./SendTokenModal";
+import { fetchProcessedPortfolio, type PortfolioToken } from "@/services/portfolioService";
+import { calculateTotalPortfolioValue, formatCurrency } from "@/services/tokenTransferService";
 
 function HeaderContent() {
   const { logout } = useLogout();
@@ -22,8 +25,10 @@ function HeaderContent() {
   const { openAuthModal } = useAuthModal();
   const [mounted, setMounted] = useState(false);
   const [showCopySuccess, setShowCopySuccess] = useState(false);
+  const [showSendModal, setShowSendModal] = useState(false);
+  const [portfolioTokens, setPortfolioTokens] = useState<PortfolioToken[]>([]);
+  const [portfolioValue, setPortfolioValue] = useState(0);
 
-  // Only access client when it's safe to do so
   const { client } = useSmartAccountClient({});
 
   // Safely get the user address with proper guards - only when connected and initialized
@@ -33,6 +38,29 @@ function HeaderContent() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Fetch portfolio data when user connects
+  useEffect(() => {
+    async function loadPortfolioForBalance() {
+      if (!isConnected || !client?.account?.address || isInitializing) {
+        setPortfolioTokens([]);
+        setPortfolioValue(0);
+        return;
+      }
+
+      try {
+        const tokens = await fetchProcessedPortfolio(client.account.address);
+        setPortfolioTokens(tokens);
+        setPortfolioValue(calculateTotalPortfolioValue(tokens));
+      } catch (error) {
+        console.error('Failed to load portfolio for balance:', error);
+        setPortfolioTokens([]);
+        setPortfolioValue(0);
+      }
+    }
+
+    loadPortfolioForBalance();
+  }, [isConnected, client?.account?.address, isInitializing]);
 
   const handleCopyAddress = async () => {
     if (userAddress) {
@@ -54,6 +82,54 @@ function HeaderContent() {
   const shortenAddress = (address: string) => {
     if (!address) return "";
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  };
+
+  const handleSendToken = async (params: {
+    tokenAddress: string;
+    recipientAddress: string;
+    amount: string;
+    decimals: number;
+  }): Promise<{ hash?: string; success: boolean }> => {
+    try {
+      // Dynamic import to avoid SSR issues
+      const { sendERC20TokenWithApproval } = await import("@/services/tokenTransferService");
+      
+      if (!client) {
+        throw new Error("Smart account client not available");
+      }
+
+      const result = await sendERC20TokenWithApproval(client, {
+        tokenAddress: params.tokenAddress as `0x${string}`,
+        recipientAddress: params.recipientAddress as `0x${string}`,
+        amount: params.amount,
+        decimals: params.decimals
+      });
+
+      if (result.success) {
+        toast.success("Token sent successfully!");
+        
+        // Refresh portfolio after successful send
+        if (userAddress) {
+          const tokens = await fetchProcessedPortfolio(userAddress);
+          setPortfolioTokens(tokens);
+          setPortfolioValue(calculateTotalPortfolioValue(tokens));
+        }
+
+        return {
+          hash: result.txHash,
+          success: true
+        };
+      } else {
+        throw new Error(result.error || "Transaction failed");
+      }
+    } catch (error) {
+      console.error("Send token error:", error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to send token";
+      toast.error(errorMessage);
+      return {
+        success: false
+      };
+    }
   };
 
   // Show loading state during hydration and initialization
@@ -141,7 +217,9 @@ function HeaderContent() {
                 <DropdownMenuTrigger asChild>
                   <button className="flex h-9 items-center gap-2 rounded-lg bg-gray-50 p-2.5 duration-300 hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 active:scale-95 dark:bg-white/10 dark:hover:bg-white/20">
                     <Wallet className="size-4 text-neutral-900 dark:text-white" />
-                    <span className="text-sm font-medium text-neutral-900 dark:text-white">$0.00</span>
+                    <span className="text-sm font-medium text-neutral-900 dark:text-white">
+                      {formatCurrency(portfolioValue)}
+                    </span>
                     <ChevronDown className="size-4 text-gray-500 dark:text-white/50" />
                   </button>
                 </DropdownMenuTrigger>
@@ -166,6 +244,17 @@ function HeaderContent() {
                     </button>
                   </div>
                   
+                  {/* Send / Receive */}
+                  <DropdownMenuItem
+                    onClick={() => setShowSendModal(true)}
+                    className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-white/80 dark:hover:bg-white/5 cursor-pointer rounded-lg"
+                  >
+                    <div className="flex items-center gap-1">
+                      <ArrowUpFromLine className="h-4 w-4" />
+                    </div>
+                    Send
+                  </DropdownMenuItem>
+                  
                   {/* Sign out */}
                   <DropdownMenuItem
                     onClick={() => logout()}
@@ -187,6 +276,14 @@ function HeaderContent() {
           )}
         </div>
       </nav>
+      
+      {/* Send Token Modal */}
+      <SendTokenModal
+        isOpen={showSendModal}
+        onClose={() => setShowSendModal(false)}
+        tokens={portfolioTokens}
+        onSend={handleSendToken}
+      />
     </header>
   );
 }

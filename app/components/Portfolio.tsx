@@ -28,16 +28,8 @@ interface PortfolioProps {
 
 
 export default function Portfolio({ tokens }: PortfolioProps) {
-  const [isLoading, setIsLoading] = useState(true);
-
-  // Show loading state for 2 seconds
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 2000);
-
-    return () => clearTimeout(timer);
-  }, []);
+  // Loading state based on whether we have tokens data
+  const isLoading = !tokens || tokens.length === 0;
 
   // Calculate total portfolio value
   const totalValue = tokens.reduce((sum, token) => sum + token.value_usd, 0);

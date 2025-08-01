@@ -5,7 +5,7 @@ import Header from "./components/header";
 import Portfolio from "./components/Portfolio";
 import { useAuthModal, useSignerStatus, useSmartAccountClient } from "@account-kit/react";
 import { Button } from "@/components/ui/button";
-import { fetchProcessedPortfolio, type PortfolioToken } from "@/services/portfolioservice";
+import { fetchProcessedPortfolio, type PortfolioToken } from "@/services/portfolioService";
 
 export default function Home() {
   const [isVisible, setIsVisible] = useState(false);
@@ -22,6 +22,23 @@ export default function Home() {
     // Trigger animation on mount
     setIsVisible(true);
     setMounted(true);
+
+    // Suppress Account Kit "Signer not connected" errors during initialization
+    const originalError = console.error;
+    console.error = (...args) => {
+      const message = args.join(' ');
+      if (message.includes('Signer not connected') || 
+          message.includes('createAccount.js:57') ||
+          message.includes('getSmartAccountClient.js:82')) {
+        return; // Suppress these specific errors
+      }
+      originalError.apply(console, args);
+    };
+
+    // Cleanup function to restore original console.error
+    return () => {
+      console.error = originalError;
+    };
   }, []);
 
   // Fetch portfolio data when user connects

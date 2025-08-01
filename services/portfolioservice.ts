@@ -40,9 +40,6 @@ export async function fetchPortfolioTokens(userAddress: string): Promise<Portfol
     const url = "https://1inch-proxy-prtfl.vercel.app/portfolio/portfolio/v5.0/tokens/snapshot";
   
     const config = {
-      headers: {
-        Authorization: "Bearer 8ekakm6PolNPyiV8atkVeUiCSgXZwD2J",
-      },
       params: {
         addresses: [userAddress],
         chain_id: "8453",
@@ -66,9 +63,6 @@ export async function fetchTokenMetadata(contractAddresses: string[]): Promise<T
     const url = "https://1inch-proxy-prtfl.vercel.app/token/v1.3/8453/custom";
   
     const config = {
-      headers: {
-        Authorization: "Bearer 8ekakm6PolNPyiV8atkVeUiCSgXZwD2J",
-      },
       params: {
         addresses: contractAddresses,
       },
@@ -89,21 +83,25 @@ export async function fetchTokenMetadata(contractAddresses: string[]): Promise<T
 // Single function to fetch and process portfolio tokens
 export async function fetchProcessedPortfolio(userAddress: string): Promise<PortfolioToken[]> {
     try {
-      console.log(`Fetching portfolio for address: ${userAddress}`);
+      console.log('🔍 Fetching portfolio for address:', userAddress);
       
       // Step 1: Fetch portfolio tokens
       const portfolioData = await fetchPortfolioTokens(userAddress);
-      console.log(`Found ${portfolioData.result.length} portfolio tokens`);
+      console.log('📊 Raw portfolio data received:', {
+        totalTokens: portfolioData.result?.length || 0,
+        tokens: portfolioData.result?.map(t => ({ name: t.contract_name, symbol: t.contract_symbol, address: t.contract_address }))
+      });
       
       // Step 2: Extract contract addresses for metadata lookup
       const contractAddresses = portfolioData.result
         .filter(token => token.underlying_tokens && token.underlying_tokens.length > 0)
         .map(token => token.contract_address);
       
-      console.log(`Fetching metadata for ${contractAddresses.length} tokens`);
+      console.log('🏷️ Fetching metadata for', contractAddresses.length, 'tokens:', contractAddresses);
       
       // Step 3: Fetch token metadata (including logoURIs)
       const tokenMetadata = await fetchTokenMetadata(contractAddresses);
+      console.log('🖼️ Token metadata received for', Object.keys(tokenMetadata).length, 'tokens');
       
       // Step 4: Process and return clean token array
       const processedTokens: PortfolioToken[] = [];
@@ -136,7 +134,21 @@ export async function fetchProcessedPortfolio(userAddress: string): Promise<Port
         processedTokens.push(processedToken);
       });
   
-      return processedTokens;
+      // Filter out tokens with zero USD value
+      const filteredTokens = processedTokens.filter(token => token.value_usd > 0);
+      
+      console.log('✅ Portfolio processing complete:', {
+        totalProcessed: processedTokens.length,
+        afterFiltering: filteredTokens.length,
+        totalValue: filteredTokens.reduce((sum, token) => sum + token.value_usd, 0).toFixed(2),
+        tokens: filteredTokens.map(t => ({ 
+          symbol: t.symbol, 
+          value: t.value_usd.toFixed(2), 
+          amount: t.amount.toFixed(6) 
+        }))
+      });
+      
+      return filteredTokens;
       
     } catch (error) {
       console.error('Error processing portfolio:', error);
