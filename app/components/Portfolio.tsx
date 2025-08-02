@@ -21,15 +21,16 @@ export interface PortfolioToken {
 // PortfolioTokenWithTarget is imported from swapOptimizingService
 
 interface PortfolioProps {
-  tokens: PortfolioToken[];
+  tokens: PortfolioToken[] | null;
   userAddress?: string;
 }
 
 
 
 export default function Portfolio({ tokens, userAddress }: PortfolioProps) {
-  // Loading state based on whether we have tokens data
-  const isLoading = !tokens || tokens.length === 0;
+  // Loading state - only show loading if tokens is null/undefined, not if empty array
+  const isLoading = !tokens;
+  const isEmpty = tokens && tokens.length === 0;
   
   // Modal state
   const [isRebalanceModalOpen, setIsRebalanceModalOpen] = useState(false);
@@ -37,23 +38,25 @@ export default function Portfolio({ tokens, userAddress }: PortfolioProps) {
   // Get smart account client for user address fallback
   const { client } = useSmartAccountClient({});
 
-  // Calculate total portfolio value
-  const totalValue = tokens.reduce((sum, token) => sum + token.value_usd, 0);
+  // Calculate total portfolio value (only if tokens exist)
+  const totalValue = tokens ? tokens.reduce((sum, token) => sum + token.value_usd, 0) : 0;
   
-  // Calculate current allocations
-  const currentAllocations = tokens.map(token => ({
+  // Calculate current allocations (only if tokens exist)
+  const currentAllocations = tokens ? tokens.map(token => ({
     ...token,
     allocation: totalValue > 0 ? (token.value_usd / totalValue) * 100 : 0
-  }));
+  })) : [];
 
   // Initialize target allocations with a stable initial state
   const [targetAllocations, setTargetAllocations] = useState<Record<string, number>>(() => {
     const initialTargets: Record<string, number> = {};
-    tokens.forEach(token => {
-      const allocation = totalValue > 0 ? (token.value_usd / totalValue) * 100 : 0;
-      // Round to nearest whole percentage for realistic swap precision
-      initialTargets[token.address] = Math.round(allocation);
-    });
+    if (tokens) {
+      tokens.forEach(token => {
+        const allocation = totalValue > 0 ? (token.value_usd / totalValue) * 100 : 0;
+        // Round to nearest whole percentage for realistic swap precision
+        initialTargets[token.address] = Math.round(allocation);
+      });
+    }
     return initialTargets;
   });
 
@@ -65,7 +68,7 @@ export default function Portfolio({ tokens, userAddress }: PortfolioProps) {
       newTargets[token.address] = Math.round(token.allocation);
     });
     setTargetAllocations(newTargets);
-  }, [tokens.length]); // Only update when tokens array changes
+  }, [tokens?.length]); // Only update when tokens array changes
 
   // Calculate total target allocation
   const totalTargetAllocation = Object.values(targetAllocations).reduce((sum, val) => sum + (val || 0), 0);
@@ -143,6 +146,63 @@ export default function Portfolio({ tokens, userAddress }: PortfolioProps) {
     // Show 1 decimal for current allocations, whole numbers for targets
     return `${value.toFixed(1)}%`;
   };
+
+  // Empty state - show when portfolio has no tokens
+  if (isEmpty) {
+    return (
+      <section className="px-4 lg:px-8 py-4">
+        <div className="max-w-6xl mx-auto">
+          <div 
+            className="rounded-2xl p-6 shadow-xl"
+            style={{
+              background: 'rgba(255, 255, 255, 0.05)',
+              backdropFilter: 'blur(20px)',
+              WebkitBackdropFilter: 'blur(20px)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.37)',
+            }}
+          >
+            {/* Header */}
+            <div className="mb-4">
+              <div className="flex items-center mb-2">
+                <div className="bg-purple-100 p-2 rounded-lg mr-4">
+                  <svg 
+                    className="h-6 w-6 text-purple-600" 
+                    fill="none" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path 
+                      d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" 
+                      strokeLinecap="round" 
+                      strokeLinejoin="round" 
+                      strokeWidth="2"
+                    />
+                  </svg>
+                </div>
+                <h2 className="text-xl font-bold text-gray-800">Portfolio Rebalancer</h2>
+              </div>
+              <p className="text-sm text-gray-600 ml-12">
+                Track your current portfolio allocation and rebalance to your ideal target mix in one click.
+              </p>
+            </div>
+
+            {/* Empty State */}
+            <div className="text-center py-12">
+              <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
+                <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Your portfolio is empty</h3>
+              <p className="text-gray-500 mb-4">Add some tokens to your wallet to start rebalancing your portfolio.</p>
+              <p className="text-sm text-gray-400">Once you have tokens, they'll appear here and you can set target allocations.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   // Skeleton loading state with exact same layout
   if (isLoading) {

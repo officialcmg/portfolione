@@ -91,7 +91,7 @@ export async function sendERC20TokenWithApproval(
     console.log("Encoded transfer data:", transferData);
 
     // Send the user operation with the transfer
-    const userOpHash = await client.sendUserOperation({
+    const userOpResult = await client.sendUserOperation({
       uo: {
         target: tokenAddress,
         data: transferData,
@@ -99,6 +99,8 @@ export async function sendERC20TokenWithApproval(
       }
     });
 
+    // Extract the hash from the result object
+    const userOpHash = typeof userOpResult === 'string' ? userOpResult : userOpResult.hash;
     console.log("User operation submitted:", userOpHash);
 
     // Wait for the transaction to be mined

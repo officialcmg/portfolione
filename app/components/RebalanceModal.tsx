@@ -176,12 +176,38 @@ export default function RebalanceModal({ isOpen, onClose, tokensWithTargets, use
                       <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                         <div className="flex items-center gap-3">
                           <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
-                              <span className="text-xs font-medium">{swap.fromSymbol}</span>
+                            <div className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-100 overflow-hidden">
+                              {(() => {
+                                const fromTokenObj = tokensWithTargets.find(t => t.address === swap.fromToken);
+                                return fromTokenObj?.logoURI ? (
+                                  <Image
+                                    src={fromTokenObj.logoURI}
+                                    alt={`${swap.fromSymbol} logo`}
+                                    width={32}
+                                    height={32}
+                                    className="w-8 h-8 rounded-full object-cover"
+                                  />
+                                ) : (
+                                  <span className="text-gray-600 font-bold text-sm">{swap.fromSymbol[0]}</span>
+                                );
+                              })()} 
                             </div>
                             <span className="text-gray-400">→</span>
-                            <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
-                              <span className="text-xs font-medium">{swap.toSymbol}</span>
+                            <div className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-100 overflow-hidden">
+                              {(() => {
+                                const toTokenObj = tokensWithTargets.find(t => t.address === swap.toToken);
+                                return toTokenObj?.logoURI ? (
+                                  <Image
+                                    src={toTokenObj.logoURI}
+                                    alt={`${swap.toSymbol} logo`}
+                                    width={32}
+                                    height={32}
+                                    className="w-8 h-8 rounded-full object-cover"
+                                  />
+                                ) : (
+                                  <span className="text-gray-600 font-bold text-sm">{swap.toSymbol[0]}</span>
+                                );
+                              })()} 
                             </div>
                           </div>
                           <div>

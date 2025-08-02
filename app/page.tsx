@@ -10,7 +10,7 @@ import { fetchProcessedPortfolio, type PortfolioToken } from "@/services/portfol
 export default function Home() {
   const [isVisible, setIsVisible] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const [portfolioTokens, setPortfolioTokens] = useState<PortfolioToken[]>([]);
+  const [portfolioTokens, setPortfolioTokens] = useState<PortfolioToken[] | null>(null);
   const [isLoadingPortfolio, setIsLoadingPortfolio] = useState(false);
   const [portfolioError, setPortfolioError] = useState<string | null>(null);
   

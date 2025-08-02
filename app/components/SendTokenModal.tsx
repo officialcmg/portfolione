@@ -302,6 +302,16 @@ export default function SendTokenModal({ isOpen, onClose, tokens, onSend }: Send
           </div>
         )}
 
+        {/* Validation Error Display */}
+        {error && status !== 'error' && status !== 'success' && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="size-4 text-red-600 flex-shrink-0" />
+              <p className="text-sm text-red-700">{error}</p>
+            </div>
+          </div>
+        )}
+
         {/* Action Buttons */}
         <div className="flex gap-3">
           {status === 'error' && (

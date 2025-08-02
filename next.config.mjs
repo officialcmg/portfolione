@@ -14,6 +14,12 @@ const nextConfig = {
         port: "",
         pathname: "/**",
       },
+      {
+        protocol: "https",
+        hostname: "tokens-data.1inch.io",
+        port: "",
+        pathname: "/**",
+      },
     ],
   },
 };
