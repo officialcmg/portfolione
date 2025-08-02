@@ -28,8 +28,9 @@ interface TokenDelta {
 // Helper function to convert USD amount to wei
 function usdToTokenWei(usdAmount: number, tokenPrice: number, decimals: number): string {
   const tokenAmount = usdAmount / tokenPrice;
-  const amountInWei = (tokenAmount * Math.pow(10, decimals)).toString();
-  return amountInWei;
+  // Convert to wei and ensure it's a whole number (no decimals)
+  const amountInWei = Math.floor(tokenAmount * Math.pow(10, decimals));
+  return amountInWei.toString();
 }
   
 // Step 1: Calculate deltas for each token
@@ -39,8 +40,8 @@ function calculateDeltas(tokensWithTargets: PortfolioTokenWithTarget[]): TokenDe
   tokensWithTargets.forEach(token => {
     const deltaUsd = token.target_value_usd - token.value_usd;
     
-    // Only process tokens with significant changes (> $1)
-    if (Math.abs(deltaUsd) > 1) {
+    // Only process tokens with significant changes (> $0.01)
+    if (Math.abs(deltaUsd) > 0.01) {
       const currentPrice = token.value_usd / token.amount;
       
       deltas.push({

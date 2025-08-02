@@ -134,7 +134,7 @@ export default function Home() {
               <Portfolio tokens={portfolioTokens} />
             </section>
           ) : (
-            <Portfolio tokens={portfolioTokens} />
+            <Portfolio tokens={portfolioTokens} userAddress={client?.account?.address} />
           )
         ) : (
           // Unauthenticated: Show Sign In Message

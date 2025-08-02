@@ -4,6 +4,9 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Image from "next/image";
+import { useSmartAccountClient } from '@account-kit/react';
+import RebalanceModal from './RebalanceModal';
+import { type PortfolioTokenWithTarget } from '@/services/swapOptimizingService';
 
 export interface PortfolioToken {
   name: string;
@@ -15,21 +18,24 @@ export interface PortfolioToken {
   logoURI: string | null;
 }
 
-// Extended interface for rebalancing input
-export interface PortfolioTokenWithTarget extends PortfolioToken {
-  target_value_usd: number;
-  target_amount: number;
-}
+// PortfolioTokenWithTarget is imported from swapOptimizingService
 
 interface PortfolioProps {
   tokens: PortfolioToken[];
+  userAddress?: string;
 }
 
 
 
-export default function Portfolio({ tokens }: PortfolioProps) {
+export default function Portfolio({ tokens, userAddress }: PortfolioProps) {
   // Loading state based on whether we have tokens data
   const isLoading = !tokens || tokens.length === 0;
+  
+  // Modal state
+  const [isRebalanceModalOpen, setIsRebalanceModalOpen] = useState(false);
+  
+  // Get smart account client for user address fallback
+  const { client } = useSmartAccountClient({});
 
   // Calculate total portfolio value
   const totalValue = tokens.reduce((sum, token) => sum + token.value_usd, 0);
@@ -79,6 +85,40 @@ export default function Portfolio({ tokens }: PortfolioProps) {
   
   // Button logic: Disabled if allocations match targets OR if total is not 100%
   const isButtonDisabled = allocationsMatch || !totalIs100;
+  
+  // Create tokens with targets for rebalancing
+  const createTokensWithTargets = (): PortfolioTokenWithTarget[] => {
+    console.log('Creating tokens with targets...');
+    console.log('Current targetAllocations:', targetAllocations);
+    
+    return currentAllocations.map(token => {
+      const targetPercentage = targetAllocations[token.address] || 0;
+      const target_value_usd = (targetPercentage / 100) * totalValue;
+      const currentPrice = token.value_usd / token.amount;
+      const target_amount = target_value_usd / currentPrice;
+      
+      console.log(`Token ${token.symbol}:`, {
+        currentValue: token.value_usd,
+        targetPercentage,
+        target_value_usd,
+        difference: target_value_usd - token.value_usd
+      });
+      
+      return {
+        ...token,
+        target_value_usd,
+        target_amount
+      };
+    });
+  };
+  
+  // Handle rebalance button click
+  const handleRebalanceClick = () => {
+    setIsRebalanceModalOpen(true);
+  };
+  
+  // Get user address from props or client
+  const effectiveUserAddress = userAddress || client?.account?.address || '';
 
   const handleTargetChange = (address: string, value: string) => {
     const numValue = parseFloat(value) || 0;
@@ -314,12 +354,21 @@ export default function Portfolio({ tokens }: PortfolioProps) {
           {/* Rebalance Button */}
           <div className="mt-4 flex justify-center">
             <Button 
+              onClick={handleRebalanceClick}
               disabled={isButtonDisabled}
               className="px-8 py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
             >
               Rebalance Portfolio
             </Button>
           </div>
+          
+          {/* Rebalance Modal */}
+          <RebalanceModal
+            isOpen={isRebalanceModalOpen}
+            onClose={() => setIsRebalanceModalOpen(false)}
+            tokensWithTargets={createTokensWithTargets()}
+            userAddress={effectiveUserAddress}
+          />
         </div>
       </div>
     </section>

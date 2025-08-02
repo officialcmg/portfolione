@@ -172,8 +172,15 @@ function HeaderContent() {
   return (
     <header className="fixed left-0 top-0 z-20 w-full bg-transparent">
       <nav className="mx-auto flex items-center justify-between p-4 text-neutral-900 lg:container dark:text-white lg:px-8">
-        {/* Left side - keep existing logo */}
+        {/* Left side - logo and text */}
         <div className="flex items-center gap-2">
+          <Image
+            src="/portfolione.png"
+            alt="PortfoliOne Logo"
+            width={32}
+            height={32}
+            className="w-8 h-8"
+          />
           <span className="text-xl font-bold text-purple-700">PortfoliOne</span>
         </div>
 

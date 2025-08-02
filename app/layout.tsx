@@ -11,6 +11,11 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "Portfolione - Smart Portfolio Rebalancing",
   description: "One-click portfolio rebalancing on Base mainnet with Alchemy Account Kit",
+  icons: {
+    icon: "/portfolione.png",
+    shortcut: "/portfolione.png",
+    apple: "/portfolione.png",
+  },
 };
 
 export default function RootLayout({
