@@ -7,12 +7,14 @@ import Image from 'next/image';
 import { useSmartAccountClient } from '@account-kit/react';
 import { generateOptimalSwaps, type PortfolioTokenWithTarget, type SwapInstruction } from '@/services/swapOptimizingService';
 import { executePortfolioRebalancing, type RebalanceResult } from '@/services/classicSwapService';
+import { type UnifiedTransactionClient } from '@/services/unifiedTransactionService';
 
 interface RebalanceModalProps {
   isOpen: boolean;
   onClose: () => void;
   tokensWithTargets: PortfolioTokenWithTarget[];
   userAddress: string;
+  transactionClient?: UnifiedTransactionClient | null;
 }
 
 type RebalanceStep = 'preview' | 'optimizing' | 'generating' | 'executing' | 'complete' | 'error';
@@ -31,7 +33,7 @@ const REBALANCE_STEPS: StepInfo[] = [
   { id: 'complete', title: 'Rebalancing complete', description: 'Your portfolio has been rebalanced!', icon: '✅' }
 ];
 
-export default function RebalanceModal({ isOpen, onClose, tokensWithTargets, userAddress }: RebalanceModalProps) {
+export default function RebalanceModal({ isOpen, onClose, tokensWithTargets, userAddress, transactionClient }: RebalanceModalProps) {
   const [currentStep, setCurrentStep] = useState<RebalanceStep>('preview');
   const [swapInstructions, setSwapInstructions] = useState<SwapInstruction[]>([]);
   const [rebalanceResult, setRebalanceResult] = useState<RebalanceResult | null>(null);
@@ -70,8 +72,8 @@ export default function RebalanceModal({ isOpen, onClose, tokensWithTargets, use
 
   // Execute the complete rebalancing process
   const executeRebalancing = async () => {
-    if (!client) {
-      setError('Smart account client not available');
+    if (!transactionClient) {
+      setError('Transaction client not available');
       setCurrentStep('error');
       return;
     }
@@ -91,7 +93,7 @@ export default function RebalanceModal({ isOpen, onClose, tokensWithTargets, use
       // Step 3: Executing swaps
       setCurrentStep('executing');
       const result = await executePortfolioRebalancing(
-        client,
+        transactionClient,
         swapInstructions,
         userAddress
       );

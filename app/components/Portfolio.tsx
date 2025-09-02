@@ -7,6 +7,7 @@ import Image from "next/image";
 import { useSmartAccountClient } from '@account-kit/react';
 import RebalanceModal from './RebalanceModal';
 import { type PortfolioTokenWithTarget } from '@/services/swapOptimizingService';
+import { type UnifiedTransactionClient } from '@/services/unifiedTransactionService';
 
 export interface PortfolioToken {
   name: string;
@@ -23,11 +24,12 @@ export interface PortfolioToken {
 interface PortfolioProps {
   tokens: PortfolioToken[] | null;
   userAddress?: string;
+  transactionClient?: UnifiedTransactionClient | null;
 }
 
 
 
-export default function Portfolio({ tokens, userAddress }: PortfolioProps) {
+export default function Portfolio({ tokens, userAddress, transactionClient }: PortfolioProps) {
   // Loading state - only show loading if tokens is null/undefined, not if empty array
   const isLoading = !tokens;
   const isEmpty = tokens && tokens.length === 0;
@@ -428,6 +430,7 @@ export default function Portfolio({ tokens, userAddress }: PortfolioProps) {
             onClose={() => setIsRebalanceModalOpen(false)}
             tokensWithTargets={createTokensWithTargets()}
             userAddress={effectiveUserAddress}
+            transactionClient={transactionClient}
           />
         </div>
       </div>

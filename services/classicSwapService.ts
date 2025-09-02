@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { type SwapInstruction } from './swapOptimizingService';
+import { type UnifiedTransactionClient } from './unifiedTransactionService';
 
 // TypeScript interfaces for 1inch API responses and transactions
 export interface Transaction {
@@ -161,21 +162,21 @@ export async function generateTransactionsFromSwaps(
 }
 
 /**
- * Execute portfolio rebalancing using Account Kit batched transactions
- * Takes a smart account client and array of transactions, batches them into a single UserOperation
+ * Execute portfolio rebalancing using unified transaction client
+ * Works with both Alchemy Account Kit and MiniKit/Wagmi clients
  * 
- * @param client - SmartAccountClient from Account Kit
+ * @param client - UnifiedTransactionClient (Alchemy or MiniKit)
  * @param transactions - Array of transactions to batch (approvals + swaps)
  * @returns Promise<RebalanceResult> - Result with transaction hash and success status
  */
 export async function rebalancePortfolio(
-  client: any, // SmartAccountClient from Account Kit
+  client: UnifiedTransactionClient,
   transactions: Transaction[]
 ): Promise<RebalanceResult> {
   try {
     // Input validation
-    if (!client?.account?.address) {
-      throw new Error("Smart account client not available");
+    if (!client?.address) {
+      throw new Error("Transaction client not available");
     }
 
     if (!transactions || transactions.length === 0) {
@@ -183,52 +184,21 @@ export async function rebalancePortfolio(
     }
 
     console.log(`\n=== EXECUTING PORTFOLIO REBALANCE ===`);
-    console.log(`Batching ${transactions.length} transactions into single UserOperation`);
-    console.log(`Account: ${client.account.address}`);
+    console.log(`Batching ${transactions.length} transactions`);
+    console.log(`Account: ${client.address}`);
 
-    // Convert transactions to UserOperation format
-    const userOperations = transactions.map(tx => ({
-      target: tx.to as `0x${string}`,
-      data: tx.data as `0x${string}`,
-      value: BigInt(tx.value || "0")
-    }));
+    // Use the unified client to send batched transactions
+    const result = await client.sendBatchedTransactions(transactions);
 
-    console.log(`Transaction types: ${transactions.map(tx => tx.type).join(' → ')}`);
-    
-    // Log transaction details for debugging
-    transactions.forEach((tx, index) => {
-      console.log(`  ${index + 1}. ${tx.type}: ${tx.description}`);
-      if (tx.toAmount) {
-        console.log(`     Expected output: ${tx.toAmount} wei`);
+    if (result.success) {
+      console.log(`🎉 Portfolio rebalancing complete!`);
+      console.log(`Transaction hash: ${result.txHash}`);
+      if (result.userOpHash) {
+        console.log(`UserOperation hash: ${result.userOpHash}`);
       }
-    });
+    }
 
-    // Send batched UserOperation using Account Kit
-    console.log('\n🚀 Submitting batched UserOperation...');
-    const userOpResult = await client.sendUserOperation({
-      uo: userOperations
-    });
-
-    // Extract the hash from the result object
-    const userOpHash = typeof userOpResult === 'string' ? userOpResult : userOpResult.hash;
-    console.log(`✅ UserOperation submitted: ${userOpHash}`);
-
-    // Wait for the transaction to be mined
-    console.log('⏳ Waiting for transaction confirmation...');
-    const txHash = await client.waitForUserOperationTransaction({
-      hash: userOpHash
-    });
-
-    console.log(`🎉 Portfolio rebalancing complete!`);
-    console.log(`Transaction hash: ${txHash}`);
-    console.log(`UserOperation hash: ${userOpHash}`);
-
-    return {
-      success: true,
-      txHash,
-      userOpHash,
-      transactionCount: transactions.length
-    };
+    return result;
 
   } catch (error) {
     console.error('❌ Error in portfolio rebalancing:', error);
@@ -252,13 +222,13 @@ export async function rebalancePortfolio(
  * Complete end-to-end portfolio rebalancing
  * Takes swap instructions, generates transactions, and executes them
  * 
- * @param client - SmartAccountClient from Account Kit
+ * @param client - UnifiedTransactionClient (Alchemy or MiniKit)
  * @param swapInstructions - Array of optimal swap instructions from swapOptimizingService
  * @param userAddress - User's wallet address
  * @returns Promise<RebalanceResult> - Complete rebalancing result
  */
 export async function executePortfolioRebalancing(
-  client: any,
+  client: UnifiedTransactionClient,
   swapInstructions: SwapInstruction[],
   userAddress: string
 ): Promise<RebalanceResult> {
@@ -270,7 +240,7 @@ export async function executePortfolioRebalancing(
     // Step 1: Generate transactions from swap instructions
     const transactions = await generateTransactionsFromSwaps(swapInstructions, userAddress);
     
-    // Step 2: Execute the batched rebalancing
+    // Step 2: Execute the batched rebalancing using unified client
     const result = await rebalancePortfolio(client, transactions);
     
     if (result.success) {

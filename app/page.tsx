@@ -4,8 +4,11 @@ import { useEffect, useState } from "react";
 import Header from "./components/header";
 import Portfolio from "./components/Portfolio";
 import { useAuthModal, useSignerStatus, useSmartAccountClient } from "@account-kit/react";
+import { useMiniKit, useAuthenticate } from "@coinbase/onchainkit/minikit";
+import { useAccount, useSendCalls } from "wagmi";
 import { Button } from "@/components/ui/button";
 import { fetchProcessedPortfolio, type PortfolioToken } from "@/services/portfolioService";
+import { createUnifiedTransactionClient } from "@/services/unifiedTransactionService";
 
 export default function Home() {
   const [isVisible, setIsVisible] = useState(false);
@@ -17,11 +20,22 @@ export default function Home() {
   const { openAuthModal } = useAuthModal();
   const { isConnected, isInitializing } = useSignerStatus();
   const { client } = useSmartAccountClient({});
+  const { setFrameReady, isFrameReady, context } = useMiniKit();
+  const { signIn } = useAuthenticate();
+  
+  // Wagmi hooks for MiniKit transaction support
+  const { address: wagmiAddress, isConnected: wagmiConnected } = useAccount();
+  const { sendCalls } = useSendCalls();
 
   useEffect(() => {
     // Trigger animation on mount
     setIsVisible(true);
     setMounted(true);
+
+    // Initialize MiniKit frame when ready
+    if (!isFrameReady) {
+      setFrameReady();
+    }
 
     // Suppress Account Kit "Signer not connected" errors during initialization
     const originalError = console.error;
@@ -39,12 +53,52 @@ export default function Home() {
     return () => {
       console.error = originalError;
     };
-  }, []);
+  }, [isFrameReady, setFrameReady]);
+
+  // Extract stable address reference to prevent infinite re-renders
+  const [currentAddress, setCurrentAddress] = useState<string | null>(null);
+  
+  // Determine if we're in a miniapp context
+  const isMiniApp = context?.user?.fid !== undefined;
+  
+  // Get address from either Account Kit or Wagmi (for MiniKit)
+  const getEffectiveAddress = () => {
+    // Priority: Account Kit client address (for direct wallet connections)
+    if (client?.account?.address) {
+      return client.account.address;
+    }
+    // Fallback: Wagmi address (for MiniKit/Farcaster context)
+    if (wagmiAddress) {
+      return wagmiAddress;
+    }
+    return null;
+  };
+  
+  // Update address when either client changes, but only when it's actually different
+  useEffect(() => {
+    const newAddress = getEffectiveAddress();
+    if (newAddress !== currentAddress) {
+      setCurrentAddress(newAddress);
+    }
+  }, [client?.account?.address, wagmiAddress, currentAddress]);
+  
+  // Unified connection state - connected if either Account Kit or Wagmi is connected
+  const isUserConnected = isConnected || wagmiConnected;
+  
+  // Create unified transaction client
+  const transactionClient = createUnifiedTransactionClient(
+    client, // Alchemy client
+    wagmiAddress, // MiniKit address
+    wagmiConnected && sendCalls ? async (params) => {
+      sendCalls(params);
+      return 'pending'; // Return a placeholder since sendCalls doesn't return the hash immediately
+    } : undefined // MiniKit sendCalls function wrapper
+  );
 
   // Fetch portfolio data when user connects
   useEffect(() => {
     async function loadPortfolio() {
-      if (!isConnected || !client?.account?.address || isInitializing) {
+      if (!isUserConnected || !currentAddress || isInitializing) {
         return;
       }
 
@@ -52,8 +106,8 @@ export default function Home() {
       setPortfolioError(null);
       
       try {
-        console.log('Fetching portfolio for:', client.account.address);
-        const tokens = await fetchProcessedPortfolio(client.account.address);
+        console.log('Fetching portfolio for:', currentAddress);
+        const tokens = await fetchProcessedPortfolio(currentAddress);
         setPortfolioTokens(tokens);
       } catch (error) {
         console.error('Failed to load portfolio:', error);
@@ -66,7 +120,7 @@ export default function Home() {
     }
 
     loadPortfolio();
-  }, [isConnected, client?.account?.address, isInitializing]);
+  }, [isUserConnected, currentAddress, isInitializing]);
 
   return (
     <>
@@ -113,7 +167,7 @@ export default function Home() {
               </div>
             </div>
           </section>
-        ) : isConnected ? (
+        ) : isUserConnected ? (
           // Authenticated: Show Portfolio
           isLoadingPortfolio ? (
             <section className="px-4 lg:px-8 py-16">
@@ -131,10 +185,18 @@ export default function Home() {
                 <p className="text-red-600 mb-4">{portfolioError}</p>
                 <p className="text-gray-600">Showing sample data instead.</p>
               </div>
-              <Portfolio tokens={portfolioTokens} />
+              <Portfolio 
+                tokens={portfolioTokens} 
+                userAddress={currentAddress || undefined}
+                transactionClient={transactionClient}
+              />
             </section>
           ) : (
-            <Portfolio tokens={portfolioTokens} userAddress={client?.account?.address} />
+            <Portfolio 
+              tokens={portfolioTokens} 
+              userAddress={currentAddress || undefined}
+              transactionClient={transactionClient}
+            />
           )
         ) : (
           // Unauthenticated: Show Sign In Message
@@ -148,13 +210,16 @@ export default function Home() {
                 }`}
               >
                 <p className="text-lg text-gray-600 mb-8">
-                  Please sign in to view your portfolio.
+                  {isMiniApp 
+                    ? "Connect your wallet to view your portfolio." 
+                    : "Please sign in to view your portfolio."
+                  }
                 </p>
                 <Button
                   onClick={() => openAuthModal()}
                   className="h-12 px-8 text-base font-medium bg-gradient-to-r from-purple-100 to-purple-200 hover:from-purple-200 hover:to-purple-300 text-purple-700 border border-purple-200 hover:border-purple-300 rounded-2xl shadow-sm hover:shadow-md transition-all duration-200 hover:scale-105"
                 >
-                  Sign In
+                  {isMiniApp ? "Connect Wallet" : "Sign In"}
                 </Button>
               </div>
             </div>
