@@ -5,8 +5,31 @@
 /* Hide Next.js error overlay in development */
 #__next-build-watcher,
 [data-nextjs-dialog-overlay],
-[data-nextjs-toast] {
+[data-nextjs-toast],
+[data-nextjs-dialog],
+[data-nextjs-dialog-backdrop],
+[data-nextjs-dialog-content],
+[data-nextjs-dialog-header],
+[data-nextjs-dialog-body],
+[data-nextjs-dialog-left-right-dialog-header],
+[data-nextjs-dialog-left-right-dialog-body],
+[data-nextjs-container],
+[data-nextjs-terminal],
+[data-nextjs-border],
+[data-nextjs-text],
+[data-nextjs-stack-frame],
+[data-nextjs-call-stack-frame],
+[data-nextjs-collapsed-call-stack-details],
+div[style*="position: fixed"][style*="z-index: 9000"],
+div[style*="position: fixed"][style*="z-index: 2147483647"],
+.__next-error-overlay,
+.__next-error-overlay *,
+nextjs-portal,
+nextjs-portal * {
   display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 
 :root {
