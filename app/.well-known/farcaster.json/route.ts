@@ -26,7 +26,7 @@ export async function GET() {
       tags: ['defi', 'portfolio', 'rebalancing', 'base'],
       heroImageUrl: process.env.NEXT_PUBLIC_APP_HERO_IMAGE,
       tagline: process.env.NEXT_PUBLIC_APP_TAGLINE,
-      ogTitle: 'Portfolione - Portfolio Rebalancer',
+      ogTitle: 'Portfolione',
       ogDescription: process.env.NEXT_PUBLIC_APP_OG_DESCRIPTION,
       ogImageUrl: process.env.NEXT_PUBLIC_APP_OG_IMAGE,
       // use only while testing
