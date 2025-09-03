@@ -188,7 +188,7 @@ function HeaderContent({ portfolioTokens = null, isLoadingPortfolio = false, use
 
         {/* Right side - two components */}
         <div className="flex gap-3 text-sm font-medium">
-          {isConnected ? (
+          {effectiveIsConnected && userAddress ? (
             <>
               {/* Network Dropdown - Base only */}
               <DropdownMenu>
