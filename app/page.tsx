@@ -181,7 +181,11 @@ export default function Home() {
 
   return (
     <>
-      <Header />
+      <Header 
+        portfolioTokens={portfolioTokens}
+        isLoadingPortfolio={isLoadingPortfolio}
+        userAddress={currentAddress}
+      />
       {/* Main content area with top padding to account for fixed navbar */}
       <main className="pt-20">
         {/* Hero Section */}

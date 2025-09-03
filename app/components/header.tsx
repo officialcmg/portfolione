@@ -2,6 +2,8 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useLogout, useSignerStatus, useUser, useSmartAccountClient, useAuthModal } from "@account-kit/react";
+import { useMiniKit } from "@coinbase/onchainkit/minikit";
+import { useAccount } from "wagmi";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,10 +17,16 @@ import Image from "next/image";
 import { formatAddress } from "@/lib/utils";
 import { toast } from "sonner";
 import SendTokenModal from "./SendTokenModal";
-import { fetchProcessedPortfolio, type PortfolioToken } from "@/services/portfolioService";
+import { type PortfolioToken } from "@/services/portfolioService";
 import { calculateTotalPortfolioValue, formatCurrency } from "@/services/tokenTransferService";
 
-function HeaderContent() {
+interface HeaderContentProps {
+  portfolioTokens?: PortfolioToken[] | null;
+  isLoadingPortfolio?: boolean;
+  userAddress?: string | null;
+}
+
+function HeaderContent({ portfolioTokens = null, isLoadingPortfolio = false, userAddress: propUserAddress }: HeaderContentProps) {
   const { logout } = useLogout();
   const { isConnected, isInitializing, error } = useSignerStatus();
   const user = useUser();
@@ -26,41 +34,40 @@ function HeaderContent() {
   const [mounted, setMounted] = useState(false);
   const [showCopySuccess, setShowCopySuccess] = useState(false);
   const [showSendModal, setShowSendModal] = useState(false);
-  const [portfolioTokens, setPortfolioTokens] = useState<PortfolioToken[]>([]);
-  const [portfolioValue, setPortfolioValue] = useState(0);
+  // Remove local state - use props instead
+  const portfolioValue = portfolioTokens ? calculateTotalPortfolioValue(portfolioTokens) : 0;
 
   const { client } = useSmartAccountClient({});
+  const { context } = useMiniKit();
+  const { address: wagmiAddress, isConnected: wagmiConnected } = useAccount();
+  
+  // Determine if we're in a miniapp context
+  const isMiniApp = context?.user?.fid !== undefined;
+  
+  // In miniapp context, ignore AccountKit initialization
+  const effectiveIsInitializing = isMiniApp ? false : isInitializing;
+  const effectiveIsConnected = isConnected || wagmiConnected;
+  
+  // Get effective address from either AccountKit or Wagmi
+  const getEffectiveAddress = () => {
+    if (!isMiniApp && client?.account?.address) {
+      return client.account.address;
+    }
+    if (isMiniApp && wagmiAddress) {
+      return wagmiAddress;
+    }
+    return null;
+  };
 
-  // Safely get the user address with proper guards - only when connected and initialized
-  const userAddress = isConnected && !isInitializing && client?.account?.address ? client.account.address : null;
+  // Use prop address if provided, otherwise get from context
+  const userAddress = propUserAddress || (effectiveIsConnected && !effectiveIsInitializing ? getEffectiveAddress() : null);
   const truncatedAddress = userAddress ? formatAddress(userAddress) : "";
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // Fetch portfolio data when user connects
-  useEffect(() => {
-    async function loadPortfolioForBalance() {
-      if (!isConnected || !client?.account?.address || isInitializing) {
-        setPortfolioTokens([]);
-        setPortfolioValue(0);
-        return;
-      }
-
-      try {
-        const tokens = await fetchProcessedPortfolio(client.account.address);
-        setPortfolioTokens(tokens);
-        setPortfolioValue(calculateTotalPortfolioValue(tokens));
-      } catch (error) {
-        console.error('Failed to load portfolio for balance:', error);
-        setPortfolioTokens([]);
-        setPortfolioValue(0);
-      }
-    }
-
-    loadPortfolioForBalance();
-  }, [isConnected, client?.account?.address, isInitializing]);
+  // Portfolio data is now passed as props - no need to fetch here
 
   const handleCopyAddress = async () => {
     if (userAddress) {
@@ -108,12 +115,7 @@ function HeaderContent() {
       if (result.success) {
         toast.success("Token sent successfully!");
         
-        // Refresh portfolio after successful send
-        if (userAddress) {
-          const tokens = await fetchProcessedPortfolio(userAddress);
-          setPortfolioTokens(tokens);
-          setPortfolioValue(calculateTotalPortfolioValue(tokens));
-        }
+        // Portfolio refresh will be handled by parent component
 
         return {
           hash: result.txHash,
@@ -133,7 +135,7 @@ function HeaderContent() {
   };
 
   // Show loading state during hydration and initialization
-  if (!mounted || isInitializing) {
+  if (!mounted || effectiveIsInitializing) {
     return (
       <header className="fixed left-0 top-0 z-20 w-full bg-transparent">
         <nav className="mx-auto flex items-center justify-between p-4 text-neutral-900 lg:container dark:text-white lg:px-8">
@@ -288,7 +290,7 @@ function HeaderContent() {
       <SendTokenModal
         isOpen={showSendModal}
         onClose={() => setShowSendModal(false)}
-        tokens={portfolioTokens}
+        tokens={portfolioTokens || []}
         onSend={handleSendToken}
       />
     </header>
