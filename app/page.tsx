@@ -121,18 +121,53 @@ export default function Home() {
   useEffect(() => {
     if (isMiniApp && context?.user?.fid && !isUserConnected && !isInitializing) {
       console.log('🔐 Attempting MiniKit auto-authentication for FID:', context.user.fid);
-      signIn();
+      // Add timeout to prevent infinite waiting
+      const timeout = setTimeout(() => {
+        console.log('⚠️ Auto-signin timeout, proceeding without authentication');
+      }, 3000);
+      
+      signIn().finally(() => clearTimeout(timeout));
     }
   }, [isMiniApp, context?.user?.fid, isUserConnected, isInitializing, signIn]);
 
+  // Add timeout fallback for setFrameReady
+  useEffect(() => {
+    if (isMiniApp && mounted && !isFrameReady) {
+      // Aggressive timeout - set frame ready after 2 seconds regardless of state
+      const fallbackTimeout = setTimeout(() => {
+        console.log('🚨 Fallback timeout: Setting frame ready to prevent infinite splash');
+        setFrameReady();
+      }, 4000);
+
+      return () => clearTimeout(fallbackTimeout);
+    }
+  }, [isMiniApp, mounted, isFrameReady, setFrameReady]);
+
   // Call setFrameReady when app is fully loaded and ready for interaction
   useEffect(() => {
-    if (mounted && !isInitializing && (!isUserConnected || !isLoadingPortfolio)) {
-      if (!isFrameReady) {
-        setFrameReady();
+    console.log('🔍 Frame ready check:', {
+      mounted,
+      isInitializing,
+      isUserConnected,
+      isLoadingPortfolio,
+      isFrameReady,
+      isMiniApp
+    });
+    
+    // For miniapps, we need to be more aggressive about calling setFrameReady
+    // Don't wait for user connection if it's taking too long
+    if (mounted && !isInitializing && !isFrameReady) {
+      // If user is connected, wait for portfolio to load
+      if (isUserConnected && isLoadingPortfolio) {
+        console.log('⏳ Waiting for portfolio to load...');
+        return;
       }
+      
+      // Otherwise, set frame ready
+      console.log('✅ Setting frame ready');
+      setFrameReady();
     }
-  }, [mounted, isInitializing, isUserConnected, isLoadingPortfolio, isFrameReady, setFrameReady]);
+  }, [mounted, isInitializing, isUserConnected, isLoadingPortfolio, isFrameReady, setFrameReady, isMiniApp]);
 
   return (
     <>
