@@ -117,6 +117,14 @@ export default function Home() {
     loadPortfolio();
   }, [isUserConnected, currentAddress, isInitializing]);
 
+  // Auto-authenticate MiniKit users if possible
+  useEffect(() => {
+    if (isMiniApp && context?.user?.fid && !isUserConnected && !isInitializing) {
+      console.log('🔐 Attempting MiniKit auto-authentication for FID:', context.user.fid);
+      signIn();
+    }
+  }, [isMiniApp, context?.user?.fid, isUserConnected, isInitializing, signIn]);
+
   // Call setFrameReady when app is fully loaded and ready for interaction
   useEffect(() => {
     if (mounted && !isInitializing && (!isUserConnected || !isLoadingPortfolio)) {

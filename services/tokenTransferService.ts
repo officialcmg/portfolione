@@ -37,6 +37,7 @@ export interface SendTokenParams {
   recipientAddress: Address;
   amount: string;
   decimals: number;
+  isETH?: boolean;
 }
 
 export interface SendTokenResult {
@@ -47,14 +48,24 @@ export interface SendTokenResult {
 }
 
 /**
- * Production-grade ERC-20 token transfer with approval batching
- * Batches approve and transfer operations into a single UserOperation for:
- * - Atomic execution (both succeed or both fail)
- * - Gas efficiency (single transaction)
- * - Better UX (single confirmation)
+ * Check if token is ETH based on address
  */
-export async function sendERC20TokenWithApproval(
-  client: any, // SmartAccountClient from Account Kit
+function isETHToken(tokenAddress: string): boolean {
+  const ethAddresses = [
+    '0x0000000000000000000000000000000000000000',
+    '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+    '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE'
+  ];
+  return ethAddresses.includes(tokenAddress.toLowerCase());
+}
+
+/**
+ * Universal token transfer function that handles both ETH and ERC-20 tokens
+ * Works with unified transaction client (Account Kit or MiniKit)
+ * Automatically detects ETH vs ERC-20 based on token address
+ */
+export async function sendTokenUniversal(
+  client: any, // UnifiedTransactionClient or legacy SmartAccountClient
   params: SendTokenParams
 ): Promise<SendTokenResult> {
   const { tokenAddress, recipientAddress, amount, decimals } = params;
@@ -74,50 +85,106 @@ export async function sendERC20TokenWithApproval(
       throw new Error("Invalid amount");
     }
 
-    // Convert amount to proper units (e.g., 1.5 USDC -> 1500000 for 6 decimals)
-    const amountInWei = parseUnits(amount, decimals);
     const senderAddress = client.account.address as Address;
+    const isETH = isETHToken(tokenAddress);
 
-    console.log(`Preparing to send ${amount} tokens from ${senderAddress} to ${recipientAddress}`);
+    console.log(`Preparing to send ${amount} ${isETH ? 'ETH' : 'tokens'} from ${senderAddress} to ${recipientAddress}`);
 
-    // For direct transfers from smart wallet, we don't need approval
-    // Smart wallets can directly transfer their own tokens
-    const transferData = encodeFunctionData({
-      abi: ERC20_ABI,
-      functionName: "transfer",
-      args: [recipientAddress, amountInWei]
-    });
+    // Check if client is unified transaction client or legacy Account Kit client
+    const isUnifiedClient = client.sendBatchedTransactions && typeof client.sendBatchedTransactions === 'function';
+    
+    if (isUnifiedClient) {
+      // Use unified transaction client
+      const transaction = isETH ? {
+        to: recipientAddress,
+        data: '0x',
+        value: parseUnits(amount, 18).toString(), // ETH always has 18 decimals
+        type: 'ETH_TRANSFER',
+        description: `Send ${amount} ETH to ${recipientAddress}`
+      } : {
+        to: tokenAddress,
+        data: encodeFunctionData({
+          abi: ERC20_ABI,
+          functionName: "transfer",
+          args: [recipientAddress, parseUnits(amount, decimals)]
+        }),
+        value: '0',
+        type: 'ERC20_TRANSFER', 
+        description: `Send ${amount} tokens to ${recipientAddress}`
+      };
 
-    console.log("Encoded transfer data:", transferData);
-
-    // Send the user operation with the transfer
-    const userOpResult = await client.sendUserOperation({
-      uo: {
-        target: tokenAddress,
-        data: transferData,
-        value: BigInt(0) // No ETH value for ERC-20 transfers
+      const result = await client.sendBatchedTransactions([transaction]);
+      
+      if (result.success) {
+        return {
+          success: true,
+          txHash: result.txHash,
+          userOpHash: result.userOpHash
+        };
+      } else {
+        throw new Error(result.error || 'Transaction failed');
       }
-    });
+    } else {
+      // Legacy Account Kit client
+      if (isETH) {
+        // Native ETH transfer
+        const amountInWei = parseUnits(amount, 18);
+        
+        const userOpResult = await client.sendUserOperation({
+          uo: {
+            target: recipientAddress,
+            data: '0x',
+            value: amountInWei
+          }
+        });
 
-    // Extract the hash from the result object
-    const userOpHash = typeof userOpResult === 'string' ? userOpResult : userOpResult.hash;
-    console.log("User operation submitted:", userOpHash);
+        const userOpHash = typeof userOpResult === 'string' ? userOpResult : userOpResult.hash;
+        console.log("ETH transfer user operation submitted:", userOpHash);
 
-    // Wait for the transaction to be mined
-    const txHash = await client.waitForUserOperationTransaction({
-      hash: userOpHash
-    });
+        const txHash = await client.waitForUserOperationTransaction({
+          hash: userOpHash
+        });
 
-    console.log("Transaction confirmed:", txHash);
+        return {
+          success: true,
+          txHash,
+          userOpHash
+        };
+      } else {
+        // ERC-20 token transfer
+        const amountInWei = parseUnits(amount, decimals);
+        
+        const transferData = encodeFunctionData({
+          abi: ERC20_ABI,
+          functionName: "transfer",
+          args: [recipientAddress, amountInWei]
+        });
 
-    return {
-      success: true,
-      txHash,
-      userOpHash
-    };
+        const userOpResult = await client.sendUserOperation({
+          uo: {
+            target: tokenAddress,
+            data: transferData,
+            value: BigInt(0)
+          }
+        });
+
+        const userOpHash = typeof userOpResult === 'string' ? userOpResult : userOpResult.hash;
+        console.log("ERC-20 transfer user operation submitted:", userOpHash);
+
+        const txHash = await client.waitForUserOperationTransaction({
+          hash: userOpHash
+        });
+
+        return {
+          success: true,
+          txHash,
+          userOpHash
+        };
+      }
+    }
 
   } catch (error) {
-    console.error("Error in sendERC20TokenWithApproval:", error);
+    console.error("Error in sendTokenUniversal:", error);
     
     let errorMessage = "Unknown error occurred";
     if (error instanceof Error) {
@@ -131,6 +198,17 @@ export async function sendERC20TokenWithApproval(
       error: errorMessage
     };
   }
+}
+
+/**
+ * Legacy ERC-20 only function - kept for backward compatibility
+ * @deprecated Use sendTokenUniversal instead
+ */
+export async function sendERC20TokenWithApproval(
+  client: any,
+  params: SendTokenParams
+): Promise<SendTokenResult> {
+  return sendTokenUniversal(client, params);
 }
 
 /**

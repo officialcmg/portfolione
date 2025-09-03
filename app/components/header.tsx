@@ -92,13 +92,13 @@ function HeaderContent() {
   }): Promise<{ hash?: string; success: boolean }> => {
     try {
       // Dynamic import to avoid SSR issues
-      const { sendERC20TokenWithApproval } = await import("@/services/tokenTransferService");
+      const { sendTokenUniversal } = await import("@/services/tokenTransferService");
       
       if (!client) {
         throw new Error("Smart account client not available");
       }
 
-      const result = await sendERC20TokenWithApproval(client, {
+      const result = await sendTokenUniversal(client, {
         tokenAddress: params.tokenAddress as `0x${string}`,
         recipientAddress: params.recipientAddress as `0x${string}`,
         amount: params.amount,
