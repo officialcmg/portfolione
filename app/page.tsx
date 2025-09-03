@@ -32,11 +32,6 @@ export default function Home() {
     setIsVisible(true);
     setMounted(true);
 
-    // Initialize MiniKit frame when ready
-    if (!isFrameReady) {
-      setFrameReady();
-    }
-
     // Suppress Account Kit "Signer not connected" errors during initialization
     const originalError = console.error;
     console.error = (...args) => {
@@ -53,7 +48,7 @@ export default function Home() {
     return () => {
       console.error = originalError;
     };
-  }, [isFrameReady, setFrameReady]);
+  }, []);
 
   // Extract stable address reference to prevent infinite re-renders
   const [currentAddress, setCurrentAddress] = useState<string | null>(null);
@@ -121,6 +116,15 @@ export default function Home() {
 
     loadPortfolio();
   }, [isUserConnected, currentAddress, isInitializing]);
+
+  // Call setFrameReady when app is fully loaded and ready for interaction
+  useEffect(() => {
+    if (mounted && !isInitializing && (!isUserConnected || !isLoadingPortfolio)) {
+      if (!isFrameReady) {
+        setFrameReady();
+      }
+    }
+  }, [mounted, isInitializing, isUserConnected, isLoadingPortfolio, isFrameReady, setFrameReady]);
 
   return (
     <>
