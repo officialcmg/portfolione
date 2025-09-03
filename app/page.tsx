@@ -76,13 +76,14 @@ export default function Home() {
     return null;
   };
   
-  // Update address when either client changes, but only when it's actually different
+  // Update address when either client changes
   useEffect(() => {
     const newAddress = getEffectiveAddress();
     if (newAddress !== currentAddress) {
+      console.log('Address updated:', { from: currentAddress, to: newAddress });
       setCurrentAddress(newAddress);
     }
-  }, [client?.account?.address, wagmiAddress, currentAddress]);
+  }, [client?.account?.address, wagmiAddress]); // Remove currentAddress from dependencies
   
   // Unified connection state - connected if either Account Kit or Wagmi is connected
   const isUserConnected = isConnected || wagmiConnected;
