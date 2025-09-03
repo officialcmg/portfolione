@@ -131,21 +131,22 @@ export class MiniKitTransactionClient implements UnifiedTransactionClient {
 export function createUnifiedTransactionClient(
   alchemyClient?: any,
   miniKitAddress?: string,
-  miniKitSendCalls?: (params: any) => Promise<string>
+  miniKitSendCalls?: (params: any) => Promise<string>,
+  isMiniApp?: boolean
 ): UnifiedTransactionClient | null {
   
-  // Priority 1: Use Alchemy client if available (works in both web and miniapp)
-  if (alchemyClient?.account?.address) {
-    console.log('🔗 Using Alchemy Account Kit client for transactions');
-    return new AlchemyTransactionClient(alchemyClient);
-  }
-  
-  // Priority 2: Use MiniKit/Wagmi if available (miniapp context)
-  if (miniKitAddress && miniKitSendCalls) {
-    console.log('📱 Using MiniKit/Wagmi client for transactions');
+  // Priority 1: Use MiniKit/Wagmi in miniapp context (Farcaster)
+  if (isMiniApp && miniKitAddress && miniKitSendCalls) {
+    console.log('📱 Using MiniKit/Wagmi client for transactions (miniapp context)');
     return new MiniKitTransactionClient(miniKitAddress, miniKitSendCalls);
   }
   
-  console.warn('⚠️ No transaction client available');
+  // Priority 2: Use Alchemy client for web/email authentication
+  if (!isMiniApp && alchemyClient?.account?.address) {
+    console.log('🔗 Using Alchemy Account Kit client for transactions (web context)');
+    return new AlchemyTransactionClient(alchemyClient);
+  }
+  
+  console.warn('⚠️ No transaction client available', { isMiniApp, miniKitAddress: !!miniKitAddress, alchemyClient: !!alchemyClient?.account?.address });
   return null;
 }

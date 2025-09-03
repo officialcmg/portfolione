@@ -18,10 +18,18 @@ export default function Home() {
   const [portfolioError, setPortfolioError] = useState<string | null>(null);
   
   const { openAuthModal } = useAuthModal();
-  const { isConnected, isInitializing } = useSignerStatus();
-  const { client } = useSmartAccountClient({});
   const { setFrameReady, isFrameReady, context } = useMiniKit();
   const { signIn } = useAuthenticate();
+  
+  // Determine if we're in a miniapp context
+  const isMiniApp = context?.user?.fid !== undefined;
+  
+  // AccountKit hooks - only used for non-miniapp contexts
+  const { isConnected, isInitializing } = useSignerStatus();
+  const { client } = useSmartAccountClient({});
+  
+  // In miniapp context, ignore AccountKit initialization
+  const effectiveIsInitializing = isMiniApp ? false : isInitializing;
   
   // Wagmi hooks for MiniKit transaction support
   const { address: wagmiAddress, isConnected: wagmiConnected } = useAccount();
@@ -50,11 +58,10 @@ export default function Home() {
     };
   }, []);
 
+  // Remove AccountKit timeout logic - not needed in miniapp context
+
   // Extract stable address reference to prevent infinite re-renders
   const [currentAddress, setCurrentAddress] = useState<string | null>(null);
-  
-  // Determine if we're in a miniapp context
-  const isMiniApp = context?.user?.fid !== undefined;
   
   // Get address from either Account Kit or Wagmi (for MiniKit)
   const getEffectiveAddress = () => {
@@ -80,20 +87,21 @@ export default function Home() {
   // Unified connection state - connected if either Account Kit or Wagmi is connected
   const isUserConnected = isConnected || wagmiConnected;
   
-  // Create unified transaction client
+  // Create unified transaction client with proper priority for miniapps
   const transactionClient = createUnifiedTransactionClient(
     client, // Alchemy client
     wagmiAddress, // MiniKit address
     wagmiConnected && sendCalls ? async (params) => {
       sendCalls(params);
       return 'pending'; // Return a placeholder since sendCalls doesn't return the hash immediately
-    } : undefined // MiniKit sendCalls function wrapper
+    } : undefined, // MiniKit sendCalls function wrapper
+    isMiniApp // Pass miniapp context for proper client priority
   );
 
   // Fetch portfolio data when user connects
   useEffect(() => {
     async function loadPortfolio() {
-      if (!isUserConnected || !currentAddress || isInitializing) {
+      if (!isUserConnected || !currentAddress || effectiveIsInitializing) {
         return;
       }
 
@@ -115,11 +123,11 @@ export default function Home() {
     }
 
     loadPortfolio();
-  }, [isUserConnected, currentAddress, isInitializing]);
+  }, [isUserConnected, currentAddress, effectiveIsInitializing]);
 
   // Auto-authenticate MiniKit users if possible
   useEffect(() => {
-    if (isMiniApp && context?.user?.fid && !isUserConnected && !isInitializing) {
+    if (isMiniApp && context?.user?.fid && !isUserConnected && !effectiveIsInitializing) {
       console.log('🔐 Attempting MiniKit auto-authentication for FID:', context.user.fid);
       // Add timeout to prevent infinite waiting
       const timeout = setTimeout(() => {
@@ -128,7 +136,7 @@ export default function Home() {
       
       signIn().finally(() => clearTimeout(timeout));
     }
-  }, [isMiniApp, context?.user?.fid, isUserConnected, isInitializing, signIn]);
+  }, [isMiniApp, context?.user?.fid, isUserConnected, effectiveIsInitializing, signIn]);
 
   // Add timeout fallback for setFrameReady
   useEffect(() => {
@@ -137,7 +145,7 @@ export default function Home() {
       const fallbackTimeout = setTimeout(() => {
         console.log('🚨 Fallback timeout: Setting frame ready to prevent infinite splash');
         setFrameReady();
-      }, 4000);
+      }, 2000);
 
       return () => clearTimeout(fallbackTimeout);
     }
@@ -148,6 +156,7 @@ export default function Home() {
     console.log('🔍 Frame ready check:', {
       mounted,
       isInitializing,
+      effectiveIsInitializing,
       isUserConnected,
       isLoadingPortfolio,
       isFrameReady,
@@ -156,7 +165,7 @@ export default function Home() {
     
     // For miniapps, we need to be more aggressive about calling setFrameReady
     // Don't wait for user connection if it's taking too long
-    if (mounted && !isInitializing && !isFrameReady) {
+    if (mounted && !effectiveIsInitializing && !isFrameReady) {
       // If user is connected, wait for portfolio to load
       if (isUserConnected && isLoadingPortfolio) {
         console.log('⏳ Waiting for portfolio to load...');
@@ -167,7 +176,7 @@ export default function Home() {
       console.log('✅ Setting frame ready');
       setFrameReady();
     }
-  }, [mounted, isInitializing, isUserConnected, isLoadingPortfolio, isFrameReady, setFrameReady, isMiniApp]);
+  }, [mounted, effectiveIsInitializing, isUserConnected, isLoadingPortfolio, isFrameReady, setFrameReady, isMiniApp]);
 
   return (
     <>
@@ -204,7 +213,7 @@ export default function Home() {
         </section>
         
         {/* Conditional Content Based on Authentication */}
-        {!mounted || isInitializing ? (
+        {!mounted || effectiveIsInitializing ? (
           // Loading state - shown during SSR and initialization
           <section className="px-4 lg:px-8 py-16">
             <div className="max-w-2xl mx-auto text-center">
