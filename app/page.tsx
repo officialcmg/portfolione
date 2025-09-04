@@ -25,7 +25,7 @@ export default function Home() {
   
   // Wagmi hooks for MiniKit transaction support
   const { address: wagmiAddress, isConnected: wagmiConnected } = useAccount();
-  const { sendCalls } = useSendCalls();
+  const { sendCalls, sendCallsAsync, data: sendCallsData, error: sendCallsError, isPending: sendCallsPending } = useSendCalls();
 
   useEffect(() => {
     // Trigger animation on mount
@@ -84,10 +84,7 @@ export default function Home() {
   const transactionClient = createUnifiedTransactionClient(
     client, // Alchemy client
     wagmiAddress, // MiniKit address
-    wagmiConnected && sendCalls ? async (params) => {
-      sendCalls(params);
-      return 'pending'; // Return a placeholder since sendCalls doesn't return the hash immediately
-    } : undefined // MiniKit sendCalls function wrapper
+    wagmiConnected ? sendCallsAsync : undefined // Use async version for proper promise handling
   );
 
   // Fetch portfolio data when user connects

@@ -68,7 +68,7 @@ export class AlchemyTransactionClient implements UnifiedTransactionClient {
 export class MiniKitTransactionClient implements UnifiedTransactionClient {
   constructor(
     private _address: string,
-    private sendCalls: (params: any) => Promise<string>
+    private sendCalls: (params: any) => Promise<{ id: string; capabilities?: any }> // Wagmi sendCallsAsync function
   ) {}
 
   get address(): string {
@@ -106,13 +106,15 @@ export class MiniKitTransactionClient implements UnifiedTransactionClient {
 
       // Send batched calls using Wagmi's useSendCalls
       console.log('🚀 Submitting batched calls via wallet_sendCalls...');
-      const callsId = await this.sendCalls({ calls });
       
-      console.log(`✅ MiniKit calls submitted: ${callsId}`);
-
+      // Use sendCallsAsync for proper promise handling
+      const result = await this.sendCalls({ calls });
+      
+      console.log(`✅ MiniKit calls submitted successfully:`, result);
+      
       return {
         success: true,
-        txHash: callsId, // In MiniKit, this is the calls ID
+        txHash: result.id, // Extract the ID from the result
         transactionCount: transactions.length
       };
 
@@ -131,7 +133,7 @@ export class MiniKitTransactionClient implements UnifiedTransactionClient {
 export function createUnifiedTransactionClient(
   alchemyClient?: any,
   miniKitAddress?: string,
-  miniKitSendCalls?: (params: any) => Promise<string>
+  miniKitSendCalls?: (params: any) => Promise<{ id: string; capabilities?: any }> // Wagmi sendCallsAsync function
 ): UnifiedTransactionClient | null {
   
   // Priority 1: Use Alchemy client if available (works in both web and miniapp)
