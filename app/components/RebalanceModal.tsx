@@ -56,6 +56,18 @@ export default function RebalanceModal({ isOpen, onClose, tokensWithTargets, use
     }
   }, [isOpen]);
 
+  // Ensure UI finalizes and spinner stops whenever a result arrives
+  useEffect(() => {
+    if (!rebalanceResult) return;
+    if (rebalanceResult.success) {
+      setCurrentStep('complete');
+    } else {
+      setCurrentStep('error');
+      if (rebalanceResult.error) setError(rebalanceResult.error);
+    }
+    setIsProcessing(false);
+  }, [rebalanceResult]);
+
   // Generate swap instructions for preview
   const generateSwapPreview = async () => {
     try {
@@ -99,21 +111,20 @@ export default function RebalanceModal({ isOpen, onClose, tokensWithTargets, use
       );
       
       setRebalanceResult(result);
-      
+
       if (result.success) {
         setCurrentStep('complete');
-        setIsProcessing(false); // Ensure spinner stops on success
       } else {
         setError(result.error || 'Rebalancing failed');
         setCurrentStep('error');
-        setIsProcessing(false); // Ensure spinner stops on error
       }
       
     } catch (error) {
       console.error('Error in rebalancing execution:', error);
       setError(error instanceof Error ? error.message : 'Unknown error occurred');
       setCurrentStep('error');
-      setIsProcessing(false); // Ensure spinner stops on catch
+    } finally {
+      setIsProcessing(false); // Ensure spinner stops in all cases
     }
   };
 
@@ -247,8 +258,8 @@ export default function RebalanceModal({ isOpen, onClose, tokensWithTargets, use
             </div>
           )}
 
-          {/* Progress Steps */}
-          {(currentStep !== 'preview' && currentStep !== 'error') && (
+          {/* Progress Steps - hide when complete */}
+          {(currentStep !== 'preview' && currentStep !== 'error' && currentStep !== 'complete') && (
             <div className="space-y-6">
               <div className="space-y-4">
                 {REBALANCE_STEPS.map((step, index) => {
