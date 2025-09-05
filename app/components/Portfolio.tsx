@@ -49,27 +49,34 @@ export default function Portfolio({ tokens, userAddress, transactionClient }: Po
     allocation: totalValue > 0 ? (token.value_usd / totalValue) * 100 : 0
   })) : [];
 
-  // Initialize target allocations with a stable initial state
+  // Initialize target allocations with equal distribution (25% each for 4 tokens)
   const [targetAllocations, setTargetAllocations] = useState<Record<string, number>>(() => {
     const initialTargets: Record<string, number> = {};
-    if (tokens) {
-      tokens.forEach(token => {
-        const allocation = totalValue > 0 ? (token.value_usd / totalValue) * 100 : 0;
-        // Round to nearest whole percentage for realistic swap precision
-        initialTargets[token.address] = Math.round(allocation);
+    if (tokens && tokens.length > 0) {
+      const equalAllocation = Math.floor(100 / tokens.length);
+      const remainder = 100 - (equalAllocation * tokens.length);
+      
+      tokens.forEach((token, index) => {
+        // Give the remainder to the first token to ensure total = 100%
+        initialTargets[token.address] = equalAllocation + (index === 0 ? remainder : 0);
       });
     }
     return initialTargets;
   });
 
-  // Update target allocations when tokens change
+  // Update target allocations when tokens change - set to equal distribution
   useEffect(() => {
-    const newTargets: Record<string, number> = {};
-    currentAllocations.forEach(token => {
-      // Round to nearest whole percentage for realistic swap precision
-      newTargets[token.address] = Math.round(token.allocation);
-    });
-    setTargetAllocations(newTargets);
+    if (tokens && tokens.length > 0) {
+      const newTargets: Record<string, number> = {};
+      const equalAllocation = Math.floor(100 / tokens.length);
+      const remainder = 100 - (equalAllocation * tokens.length);
+      
+      tokens.forEach((token, index) => {
+        // Give the remainder to the first token to ensure total = 100%
+        newTargets[token.address] = equalAllocation + (index === 0 ? remainder : 0);
+      });
+      setTargetAllocations(newTargets);
+    }
   }, [tokens?.length]); // Only update when tokens array changes
 
   // Calculate total target allocation
