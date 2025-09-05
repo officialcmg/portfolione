@@ -25,11 +25,16 @@ interface TokenDelta {
   currentPrice: number;
 }
 
+// Minimum USD threshold for including a token in rebalancing and for swap sizing
+// Using $1 helps avoid tiny swaps that can lead to invalid (zero-wei) amounts or API rejections.
+const MIN_USD_THRESHOLD = 1.0;
+
 // Helper function to convert USD amount to wei
 function usdToTokenWei(usdAmount: number, tokenPrice: number, decimals: number): string {
   const tokenAmount = usdAmount / tokenPrice;
-  // Convert to wei and ensure it's a whole number (no decimals)
-  const amountInWei = Math.floor(tokenAmount * Math.pow(10, decimals));
+  // Convert to smallest unit ("wei") and ensure it's at least 1 to avoid zero-amount swaps
+  const weiFloat = tokenAmount * Math.pow(10, decimals);
+  const amountInWei = Math.max(1, Math.floor(weiFloat));
   return amountInWei.toString();
 }
   
@@ -40,8 +45,8 @@ function calculateDeltas(tokensWithTargets: PortfolioTokenWithTarget[]): TokenDe
   tokensWithTargets.forEach(token => {
     const deltaUsd = token.target_value_usd - token.value_usd;
     
-    // Only process tokens with significant changes (> $0.01)
-    if (Math.abs(deltaUsd) > 0.01) {
+    // Only process tokens with significant changes (> $1.00)
+    if (Math.abs(deltaUsd) > MIN_USD_THRESHOLD) {
       const currentPrice = token.value_usd / token.amount;
       
       deltas.push({
@@ -61,8 +66,8 @@ function calculateDeltas(tokensWithTargets: PortfolioTokenWithTarget[]): TokenDe
   
 // Step 2: Separate surplus (sell) and deficit (buy) tokens
 function separateSurplusDeficit(deltas: TokenDelta[]): { surplus: TokenDelta[], deficit: TokenDelta[] } {
-  const surplus = deltas.filter(d => d.deltaUsd < -0.01); // Need to sell
-  const deficit = deltas.filter(d => d.deltaUsd > 0.01);   // Need to buy
+  const surplus = deltas.filter(d => d.deltaUsd < -MIN_USD_THRESHOLD); // Need to sell
+  const deficit = deltas.filter(d => d.deltaUsd > MIN_USD_THRESHOLD);   // Need to buy
   
   // Sort by magnitude for optimal matching
   surplus.sort((a, b) => a.deltaUsd - b.deltaUsd); // Most negative first

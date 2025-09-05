@@ -21,6 +21,35 @@ export interface RebalanceResult {
   transactionCount?: number;
 }
 
+// Helpers
+const ETH_PSEUDO_ADDRESS = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+
+function isValidAddress(addr: string | undefined): boolean {
+  if (!addr) return false;
+  const lower = addr.toLowerCase();
+  return /^0x[a-fA-F0-9]{40}$/.test(addr) || lower === ETH_PSEUDO_ADDRESS;
+}
+
+function ensurePositiveAmount(amount: string): void {
+  try {
+    const v = BigInt(amount);
+    if (v <= 0n) {
+      throw new Error(`Amount must be > 0 (wei), got ${amount}`);
+    }
+  } catch (e) {
+    throw new Error(`Invalid amount: ${amount}`);
+  }
+}
+
+function buildAxiosErrorMessage(err: any, context: string, params?: Record<string, unknown>): string {
+  const status = err?.response?.status;
+  const data = err?.response?.data;
+  const desc = data?.description || data?.message || err?.message || 'Unknown error';
+  const code = data?.statusCode || data?.code;
+  const paramSnippet = params ? ` | params=${JSON.stringify(params)}` : '';
+  return `[${context}] 1inch error${status ? ` (${status})` : ''}${code ? ` [${code}]` : ''}: ${desc}${paramSnippet}`;
+}
+
 // Get approval transaction from 1inch API via your proxy
 async function get1inchApprovalTransaction(tokenAddress: string, amount: string): Promise<Transaction | null> {
   // Skip approval for native ETH
@@ -40,7 +69,13 @@ async function get1inchApprovalTransaction(tokenAddress: string, amount: string)
   };
 
   try {
-    console.log(`Getting approval transaction for ${tokenAddress}, amount: ${amount}`);
+    // Validate inputs
+    if (!isValidAddress(tokenAddress)) {
+      throw new Error(`[approval] Invalid token address: ${tokenAddress}`);
+    }
+    ensurePositiveAmount(amount);
+
+    console.log(`[1inch][approval] GET ${url}`, params);
     const response = await axios.get(url, config);
     
     return {
@@ -51,10 +86,9 @@ async function get1inchApprovalTransaction(tokenAddress: string, amount: string)
       description: `Approve ${tokenAddress} spending`
     };
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    const errorData = (error as any)?.response?.data;
-    console.error('Error getting 1inch approval transaction:', errorData || errorMessage);
-    throw error;
+    const enriched = buildAxiosErrorMessage(error, 'approval', params);
+    console.error('Error getting 1inch approval transaction:', enriched);
+    throw new Error(enriched);
   }
 }
 
@@ -86,7 +120,14 @@ async function get1inchSwapTransaction(
   };
 
   try {
-    console.log(`Getting swap transaction: ${fromToken} → ${toToken}, amount: ${amount}`);
+    // Validate inputs
+    if (!isValidAddress(fromToken)) throw new Error(`[swap] Invalid from token: ${fromToken}`);
+    if (!isValidAddress(toToken)) throw new Error(`[swap] Invalid to token: ${toToken}`);
+    if (fromToken.toLowerCase() === toToken.toLowerCase()) throw new Error('[swap] src and dst tokens are identical');
+    if (!isValidAddress(userAddress)) throw new Error(`[swap] Invalid user address: ${userAddress}`);
+    ensurePositiveAmount(amount);
+
+    console.log(`[1inch][swap] GET ${url}`, params);
     const response = await axios.get(url, config);
     
     return {
@@ -100,10 +141,9 @@ async function get1inchSwapTransaction(
       protocols: response.data.protocols
     };
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    const errorData = (error as any)?.response?.data;
-    console.error('Error getting 1inch swap transaction:', errorData || errorMessage);
-    throw error;
+    const enriched = buildAxiosErrorMessage(error, 'swap', params);
+    console.error('Error getting 1inch swap transaction:', enriched);
+    throw new Error(enriched);
   }
 }
 
@@ -156,7 +196,7 @@ export async function generateTransactionsFromSwaps(
     return transactions;
     
   } catch (error) {
-    console.error('Error generating transactions:', error);
+    console.error('Error generating transactions:', error instanceof Error ? error.message : error);
     throw error;
   }
 }
