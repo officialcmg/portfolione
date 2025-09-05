@@ -93,8 +93,13 @@ export default function Home() {
     client, // Alchemy client
     wagmiAddress, // MiniKit address
     wagmiConnected && sendCallsAsync ? async (params) => {
-      const result = await sendCallsAsync(params);
-      return result.id; // Return the actual call ID from sendCalls
+      try {
+        const result = await sendCallsAsync(params);
+        return result.id; // Return just the ID string as expected
+      } catch (error) {
+        console.error('SendCalls failed:', error);
+        throw error;
+      }
     } : undefined, // MiniKit sendCalls function wrapper
     isMiniApp // Pass miniapp context for proper client priority
   );

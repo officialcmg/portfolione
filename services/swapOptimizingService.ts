@@ -26,8 +26,8 @@ interface TokenDelta {
 }
 
 // Minimum USD threshold for including a token in rebalancing and for swap sizing
-// Using $0.10 to allow smaller rebalancing moves while avoiding zero-wei amounts
-const MIN_USD_THRESHOLD = 0.10;
+// Using $1 helps avoid tiny swaps that can lead to invalid (zero-wei) amounts or API rejections.
+const MIN_USD_THRESHOLD = 1.0;
 
 // Helper function to convert USD amount to wei
 function usdToTokenWei(usdAmount: number, tokenPrice: number, decimals: number): string {
@@ -130,15 +130,9 @@ export function generateOptimalSwaps(tokensWithTargets: PortfolioTokenWithTarget
   console.log('\n=== GENERATING OPTIMAL SWAPS ===');
   console.log(`Processing ${tokensWithTargets.length} tokens`);
   
-  // Debug: Log all token data
-  tokensWithTargets.forEach(token => {
-    const deltaUsd = token.target_value_usd - token.value_usd;
-    console.log(`${token.symbol}: current=$${token.value_usd.toFixed(2)}, target=$${token.target_value_usd.toFixed(2)}, delta=$${deltaUsd.toFixed(2)}`);
-  });
-  
   // Step 1: Calculate deltas
   const deltas = calculateDeltas(tokensWithTargets);
-  console.log(`Found ${deltas.length} tokens needing rebalancing (threshold: $${MIN_USD_THRESHOLD})`);
+  console.log(`Found ${deltas.length} tokens needing rebalancing`);
   
   if (deltas.length === 0) {
     console.log('No rebalancing needed - all tokens are within target ranges');
