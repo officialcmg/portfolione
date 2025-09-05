@@ -26,8 +26,7 @@ interface TokenDelta {
 }
 
 // Minimum USD threshold for including a token in rebalancing and for swap sizing
-// Using $1 helps avoid tiny swaps that can lead to invalid (zero-wei) amounts or API rejections.
-const MIN_USD_THRESHOLD = 1.0;
+const MIN_USD_THRESHOLD = 0.1;
 
 // Helper function to convert USD amount to wei
 function usdToTokenWei(usdAmount: number, tokenPrice: number, decimals: number): string {
