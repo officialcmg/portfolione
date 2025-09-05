@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, CheckCircle, AlertCircle, Loader2, ExternalLink } from 'lucide-react';
 import Image from 'next/image';
-import { useSmartAccountClient } from '@account-kit/react';
+import { useWaitForCallsStatus } from 'wagmi';
 import { generateOptimalSwaps, type PortfolioTokenWithTarget, type SwapInstruction } from '@/services/swapOptimizingService';
 import { executePortfolioRebalancing, type RebalanceResult } from '@/services/classicSwapService';
 import { type UnifiedTransactionClient } from '@/services/unifiedTransactionService';
@@ -26,6 +26,10 @@ interface StepInfo {
   icon: string;
 }
 
+// Lightweight types for MiniKit calls status polling
+type CallReceiptLite = { transactionHash?: `0x${string}` };
+type CallsStatusLite = { receipts?: CallReceiptLite[] };
+
 const REBALANCE_STEPS: StepInfo[] = [
   { id: 'optimizing', title: 'Optimizing swaps', description: 'Calculating optimal swap routes...', icon: '🔄' },
   { id: 'generating', title: 'Generating transactions', description: 'Creating swap transactions...', icon: '🔗' },
@@ -40,7 +44,21 @@ export default function RebalanceModal({ isOpen, onClose, tokensWithTargets, use
   const [error, setError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const { client } = useSmartAccountClient({});
+  // Derive MiniKit calls ID (when there's no userOpHash, treat returned hash as callsId)
+  const miniKitCallsId = (() => {
+    if (!rebalanceResult) return undefined;
+    const hash = rebalanceResult.txHash || '';
+    const isAlchemy = !!rebalanceResult.userOpHash;
+    if (isAlchemy) return undefined;
+    if (hash && hash.startsWith('0x')) return hash as `0x${string}`;
+    return undefined;
+  })();
+
+  // Poll for batched calls status (EIP-5792) to surface mined transaction receipts
+  const { data: callsStatus, isLoading: isCallsLoading, isFetching: isCallsFetching } = useWaitForCallsStatus({
+    id: miniKitCallsId as `0x${string}`,
+    query: { enabled: !!miniKitCallsId, refetchInterval: 2000 },
+  });
 
   // Reset state when modal opens
   useEffect(() => {
@@ -303,20 +321,82 @@ export default function RebalanceModal({ isOpen, onClose, tokensWithTargets, use
                 <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <CheckCircle className="w-8 h-8 text-green-600" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-2">✅ Portfolio Rebalanced Successfully!</h3>
-                <p className="text-gray-600 mb-4">🎯 New allocation matches your targets</p>
-                
-                {rebalanceResult.txHash && (
-                  <a
-                    href={`https://basescan.org/tx/${rebalanceResult.txHash}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 text-purple-600 hover:text-purple-700 font-medium"
-                  >
-                    🔗 View on BaseScan
-                    <ExternalLink className="w-4 h-4" />
-                  </a>
-                )}
+                {/* Differentiate Alchemy (mined tx) vs MiniKit (submitted calls) */}
+                {(() => {
+                  const hash = rebalanceResult.txHash || '';
+                  const isValidTxHash = /^0x[a-fA-F0-9]{64}$/.test(hash);
+                  const isAlchemy = !!rebalanceResult.userOpHash;
+
+                  // Alchemy path: we have a mined tx hash & userOpHash
+                  if (isAlchemy && isValidTxHash) {
+                    return (
+                      <>
+                        <h3 className="text-xl font-bold text-gray-900 mb-2">✅ Portfolio Rebalanced Successfully!</h3>
+                        <p className="text-gray-600 mb-4">🎯 Your transactions were mined on Base.</p>
+                        <a
+                          href={`https://basescan.org/tx/${hash}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 text-purple-600 hover:text-purple-700 font-medium"
+                        >
+                          🔗 View on BaseScan
+                          <ExternalLink className="w-4 h-4" />
+                        </a>
+                      </>
+                    );
+                  }
+
+                  // MiniKit path (wallet_sendCalls): we start with a callsId
+                  const receipts = (callsStatus as CallsStatusLite)?.receipts ?? [];
+
+                  // If calls are confirmed, surface receipt tx hashes with BaseScan links
+                  if (receipts.length > 0) {
+                    return (
+                      <>
+                        <h3 className="text-xl font-bold text-gray-900 mb-2">✅ Portfolio Rebalanced Successfully!</h3>
+                        <p className="text-gray-600 mb-4">🎯 Your transactions were mined on Base.</p>
+                        <div className="space-y-2">
+                          {receipts.filter(r => !!r.transactionHash).map((r: CallReceiptLite, i: number) => (
+                            <a
+                              key={r.transactionHash as string}
+                              href={`https://basescan.org/tx/${r.transactionHash as string}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-2 text-purple-600 hover:text-purple-700 font-medium"
+                            >
+                              🔗 Tx {i + 1} on BaseScan
+                              <ExternalLink className="w-4 h-4" />
+                            </a>
+                          ))}
+                        </div>
+                      </>
+                    );
+                  }
+
+                  // Pending path: show calls ID and a fallback address link while we wait for receipts
+                  return (
+                    <>
+                      <h3 className="text-xl font-bold text-gray-900 mb-2">✅ Batched Calls Submitted</h3>
+                      <p className="text-gray-600 mb-2">Your wallet has submitted the batched calls to process your rebalance.</p>
+                      {miniKitCallsId && (
+                        <p className="text-sm text-gray-500 break-all">Calls ID: <span className="font-mono">{miniKitCallsId}</span></p>
+                      )}
+                      <p className="text-sm text-gray-500 mt-3">
+                        {(isCallsLoading || isCallsFetching) ? 'Waiting for confirmations…' : 'Waiting for receipts…'}
+                      </p>
+                      <a
+                        href={`https://basescan.org/address/${userAddress}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 text-purple-600 hover:text-purple-700 font-medium mt-2"
+                      >
+                        🔎 View your wallet on BaseScan
+                        <ExternalLink className="w-4 h-4" />
+                      </a>
+                      <p className="text-xs text-gray-400 mt-2">We’ll show transaction links automatically once confirmed.</p>
+                    </>
+                  );
+                })()}
               </div>
               
               <button
